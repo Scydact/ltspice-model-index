@@ -56,7 +56,8 @@ export function parseLtspiceNumber(str: string) {
         f: 1e-15
     }
     const engexp: number = (m[3]) ? mults[m[3].toLowerCase()] : 1;
-    const value = base * engexp;
+    // toPrecision(15) fixes floating point error (on eg: 2.74m)
+    const value = parseFloat((base * engexp).toPrecision(15));
     return {
         value,
         raw,
@@ -65,6 +66,7 @@ export function parseLtspiceNumber(str: string) {
         engexpraw: m[3],
         suffix: m[4] || null,
         toString: function () { return toLtspiceNumber(this.value); },
+        valueOf: function () { return this.value; }
     }
 }
 

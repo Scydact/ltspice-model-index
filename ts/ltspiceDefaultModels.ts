@@ -22,8 +22,16 @@ function extractTableData(table) {
     return o;
 }
 
+const STD_PARAMS: i_defaultParamDefinition = {
+    mfg: {
+        description: "Manufacturer",
+        units: "-",
+    },
+}
+
 // Most of this info taken from http://ltwiki.org/ using extractTableData()
 const NPN: i_defaultParamDefinition = {
+    ...STD_PARAMS,
     Is: {
         description: "Transport saturation current",
         units: "A",
@@ -318,7 +326,23 @@ const NPN: i_defaultParamDefinition = {
         description: "Substrate junction emission Coefficient",
         units: "-",
         default: "1."
-    }
+    },
+
+    Level: {
+        description: "Can be used to specify another type of BJT in LTspice.",
+        units: "-",
+    },
+
+    // Ignored by LTSPICE, but useful:
+    Vceo: {
+        description: "Maximun collector-emitter voltage. \nIgnored by LTspice, but useful when comparing models.",
+        units: "V",
+    },
+    Icrating: {
+        description: "Maximum collector current. \nIgnored by LTspice, but useful when comparing models.",
+        units: "V",
+    },
+
 };
 
 const PNP: i_defaultParamDefinition = {
@@ -328,6 +352,7 @@ const PNP: i_defaultParamDefinition = {
 }
 
 const D: i_defaultParamDefinition = {
+    ...STD_PARAMS,
     Ron: {
         description: "Resistance in forward conduction",
         units: "Ω",
@@ -518,10 +543,103 @@ const D: i_defaultParamDefinition = {
     diss: {
         description: "Maximum power dissipation rating",
         units: "W"
-    }
+    },
+
+    nbv: {
+        description: "Reverse breakdown emission coefficient",
+        units: "-",
+        default: "1.",
+        example: "2."
+    },
+    Ibvl: {
+        description: "Low-level reverse breakdown knee current",
+        units: "A",
+        default: "0.",
+        example: " "
+    },
+    nbvl: {
+        description: "Low-level reverse breakdown emission coefficient",
+        units: "-",
+        default: "1.",
+        example: " "
+    },
+    Tbv1: {
+        description: "Breakdown voltage temp coeff.",
+        units: "/°C",
+        default: "0.",
+        example: " "
+    },
+    Tbv2: {
+        description: "Quadratic breakdown voltage temp coeff.",
+        units: "/°C2",
+        default: "0.",
+        example: " "
+    },
+    Perim: {
+        description: "Default perimeter",
+        units: "m",
+        default: "0.",
+        example: " "
+    },
+    Isw: {
+        description: "Sidewall Is",
+        units: "A",
+        default: "0.",
+        example: " "
+    },
+    ns: {
+        description: "Sidewall emission coefficient",
+        units: "-",
+        default: "1.",
+        example: " "
+    },
+    Rsw: {
+        description: "Sidewall series resistance",
+        units: "Ω",
+        default: "0.",
+        example: " "
+    },
+    Cjsw: {
+        description: "Sidewall Cjo",
+        units: "F",
+        default: "0.",
+        example: " "
+    },
+    Vjsw: {
+        description: "Sidewall Vj",
+        units: "V",
+        default: "Vj",
+        example: " "
+    },
+    mjsw: {
+        description: "Sidewall mj",
+        units: "-",
+        default: "0.33",
+        example: " "
+    },
+    Fcs: {
+        description: "Sidewall Fc",
+        units: "-",
+        default: "Fc",
+        example: " "
+    },
+    Vp: {
+        description: "Soft reverse recovery parameter",
+        units: "-",
+        default: "0.",
+        example: ".65"
+    },
+
+
+    // Ignored by LTSPICE
+    type: {
+        description: "Diode type",
+        units: "-",
+    },
 }
 
 const NJF: i_defaultParamDefinition = {
+    ...STD_PARAMS,
     Vto: {
         description: "Threshold voltage",
         units: "V",
@@ -659,8 +777,9 @@ const NJF: i_defaultParamDefinition = {
 const PJF = NJF;
 
 const VDMOS: i_defaultParamDefinition = {
+    ...STD_PARAMS,
     Vto: {
-        description: "Threshold voltage",
+        description: "Zero-bias threshold voltage",
         units: "V",
         default: "0",
         example: "1.0"
@@ -668,8 +787,14 @@ const VDMOS: i_defaultParamDefinition = {
     Kp: {
         description: "Transconductance parameter",
         units: "A/V²",
-        default: "1.",
-        example: ".5"
+        default: "2e-5",
+        example: "3e-5"
+    },
+    Gamma: {
+        description: "Bulk threshold parameter",
+        units: "V^½",
+        default: "0.",
+        example: "0.37"
     },
     Phi: {
         description: "Surface inversion potential",
@@ -678,11 +803,233 @@ const VDMOS: i_defaultParamDefinition = {
         example: "0.65"
     },
     Lambda: {
-        description: "Channel-length modulation",
+        description: "Channel-length modulation (level 1 and 2 only)",
         units: "1/V",
         default: "0.",
         example: "0.02"
     },
+    Rd: {
+        description: "Drain ohmic resistance",
+        units: "Ω",
+        default: "0.",
+        example: "1."
+    },
+    Rs: {
+        description: "Source ohmic resistance",
+        units: "Ω",
+        default: "0.",
+        example: "1."
+    },
+    Cbd: {
+        description: "Zero-bias B-D junction capacitance",
+        units: "F",
+        default: "0.",
+        example: "20f"
+    },
+    Cbs: {
+        description: "Zero-bias B-S junction capacitance",
+        units: "F",
+        default: "0.",
+        example: "20f"
+    },
+    Is: {
+        description: "Bulk junction saturation current",
+        units: "A",
+        default: "1e-14",
+        example: "1e-15"
+    },
+    N: {
+        description: "Bulk diode emission coefficient",
+        units: "-",
+        default: "1.",
+        example: " "
+    },
+    Pb: {
+        description: "Bulk junction potential",
+        units: "V",
+        default: "0.8",
+        example: "0.87"
+    },
+    Cgso: {
+        description: "Gate-source overlap capacitance per meter channel width",
+        units: "F/m",
+        default: "0.",
+        example: "4e-11"
+    },
+    Cgdo: {
+        description: "Gate-drain overlap capacitance per meter channel width",
+        units: "F/m",
+        default: "0.",
+        example: "4e-11"
+    },
+    Cgbo: {
+        description: "Gate-bulk overlap capacitance per meter channel width",
+        units: "F/m",
+        default: "0.",
+        example: "2e-10"
+    },
+    Rsh: {
+        description: "Drain and source diffusion sheet resistance",
+        units: "Ω",
+        default: "0.",
+        example: "10."
+    },
+    Cj: {
+        description: "Zero-bias bulk junction bottom capacitance per square meter of junction area",
+        units: "F/m²",
+        default: "0.",
+        example: "2e-4"
+    },
+    Mj: {
+        description: "Bulk junction bottom grading coefficient",
+        units: "-",
+        default: "0.5",
+        example: "0.5"
+    },
+    Cjsw: {
+        description: "Zero-bias bulk junction sidewall capacitance per meter of junction perimeter",
+        units: "F/m",
+        default: "0.",
+        example: "1p"
+    },
+    Mjsw: {
+        description: "Bulk junction sidewall grading coefficient",
+        units: "-",
+        default: ".50"
+    },
+    Js: {
+        description: "Bulk junction saturation current per square-meter of junction area",
+        units: "A/m",
+        default: "0.",
+        example: "1e-8"
+    },
+    Tox: {
+        description: "Oxide thickness",
+        units: "m",
+        default: "1e-7",
+        example: "1e-7"
+    },
+    Nsub: {
+        description: "Substrate doping",
+        units: "1/cm³",
+        default: "0.",
+        example: "4e15"
+    },
+    Nss: {
+        description: "Surface state density",
+        units: "1/cm²",
+        default: "0.",
+        example: "1e+10"
+    },
+    Nfs: {
+        description: "Fast surface state",
+        units: "1/cm²",
+        default: "0.",
+        example: "1e+10"
+    },
+    TPG: {
+        description: "Type of gate material:\n\n+1 opp. to substrate\n\n-1 same as substrate\n\n0 Al gate",
+        units: "-",
+        default: "1",
+        example: " "
+    },
+    Xj: {
+        description: "Metallurgical junction depth",
+        units: "m",
+        default: "0.",
+        example: "1µ"
+    },
+    Ld: {
+        description: "Lateral diffusion",
+        units: "m",
+        default: "0.",
+        example: "0.8µ"
+    },
+    Uo: {
+        description: "Surface mobility",
+        units: "cm²/V/s",
+        default: "600",
+        example: "700"
+    },
+    Ucrit: {
+        description: "Critical field for mobility degradation (level 2 only)",
+        units: "V/cm",
+        default: "1e4",
+        example: "1e4"
+    },
+    Uexp: {
+        description: "Critical field exponent in mobility degradation (level 2 only)",
+        units: "-",
+        default: "0.",
+        example: "0.1"
+    },
+    Utra: {
+        description: "Transverse field coefficient (level 2 only)",
+        units: "-",
+        default: "0.",
+        example: "0.3"
+    },
+    Vmax: {
+        description: "Maximum carrier drift velocity (levels 2 & 3 only)",
+        units: "m/s",
+        default: "0.",
+        example: "5e4"
+    },
+    Neff: {
+        description: "Total channel-charge exponent (level 2 only)",
+        units: "-",
+        default: "1.",
+        example: "5."
+    },
+    Kf: {
+        description: "Flicker noise coefficient",
+        units: "-",
+        default: "0.",
+        example: "1e-26"
+    },
+    Af: {
+        description: "Flicker noise exponent",
+        units: "-",
+        default: "1.",
+        example: "1.2"
+    },
+    Fc: {
+        description: "Coefficient for forward-bias depletion capacitance formula",
+        units: "-",
+        default: "0.5",
+        example: " "
+    },
+    Delta: {
+        description: "Width effect on threshold voltage(levels 2 and 3)",
+        units: "-",
+        default: "0.",
+        example: "1."
+    },
+    Theta: {
+        description: "Mobility modulation (level 3 only)",
+        units: "-",
+        default: "0.",
+        example: "0.1"
+    },
+    Eta: {
+        description: "Static feedback (level 3 only)",
+        units: "-",
+        default: "0.",
+        example: "1."
+    },
+    Kappa: {
+        description: "Saturation field (level 3 only)",
+        units: " ",
+        default: "0.2",
+        example: "0.5"
+    },
+    Tnom: {
+        description: "Parameter measurement temperature",
+        units: "ºC",
+        default: "27",
+        example: "50"
+    },
+
     mtriode: {
         description: "Conductance multiplier in triode region(allows independent fit of triode and saturation regions",
         units: "-",
@@ -712,18 +1059,6 @@ const VDMOS: i_defaultParamDefinition = {
         units: "-",
         default: "1.",
         example: "10"
-    },
-    Rd: {
-        description: "Drain ohmic resistance",
-        units: "Ω",
-        default: "0.",
-        example: "1."
-    },
-    Rs: {
-        description: "Source ohmic resistance",
-        units: "Ω",
-        default: "0.",
-        example: "1."
     },
     Rg: {
         description: "Gate ohmic resistance",
@@ -773,18 +1108,6 @@ const VDMOS: i_defaultParamDefinition = {
         default: "1.",
         example: ".5"
     },
-    Is: {
-        description: "Body diode saturation current",
-        units: "A",
-        default: "1e-14",
-        example: "1e-15"
-    },
-    N: {
-        description: "Bulk diode emission coefficient",
-        units: "-",
-        default: "1.",
-        example: " "
-    },
     Vj: {
         description: "Body diode junction potential",
         units: "V",
@@ -797,13 +1120,7 @@ const VDMOS: i_defaultParamDefinition = {
         default: "0.5",
         example: "0.5"
     },
-    Fc: {
-        description: "Body diode coefficient for forward-bias depletion capacitance formula",
-        units: "-",
-        default: "0.5",
-        example: " "
-    },
-    tt: {
+    Tt: {
         description: "Body diode transit time",
         units: "sec",
         default: "0.",
@@ -833,47 +1150,31 @@ const VDMOS: i_defaultParamDefinition = {
         default: "1.",
         example: " "
     },
-    Kf: {
-        description: "Flicker noise coefficient",
-        units: "-",
-        default: "0.",
-        example: " "
-    },
-    Af: {
-        description: "Flicker noise exponent",
-        units: "-",
-        default: "1.",
-        example: " "
-    },
     nchan: {
-        description: "N-channel VDMOS (flag)",
+        description: "N-channel VDMOS",
         units: "-",
         default: "(true)",
         example: "-"
     },
     pchan: {
-        description: "P-channel VDMOS (flag)",
+        description: "P-channel VDMOS",
         units: "-",
         default: "(false)",
         example: "-"
     },
-    Tnom: {
-        description: "Parameter measurement temperature",
-        units: "ºC",
-        default: "27",
-        example: "50"
-    },
+
+
     // Custom parameters: ignored by LTspice but useful for comparing
     Vds: {
-        description: "Rated Drain-source voltage. Ignored by LTspice, but useful when comparing models.",
+        description: "Rated Drain-source voltage. \nIgnored by LTspice, but useful when comparing models.",
         units: "V",
     },
     Ron: {
-        description: "On-state resistance. Ignored by LTspice, but useful when comparing models.",
+        description: "On-state resistance. \nIgnored by LTspice, but useful when comparing models.",
         units: "V",
     },
     Qg: {
-        description: "Gate charge. Ignored by LTspice, but useful when comparing models.",
+        description: "Gate charge. \nIgnored by LTspice, but useful when comparing models.",
         units: "C",
     },
 }
@@ -891,3 +1192,50 @@ export const DEFAULT_MODELS = {
     NMOS,
     PMOS,
 };
+
+export const MODEL_TYPES = {
+    BJT: ['NPN', 'PNP'],
+    D: ['D'],
+    JFET: ['NJF', 'PJF'],
+    MOSFET: ['VDMOS', 'NMOS', 'PMOS'],
+}
+
+export const DEFAULT_PARAMETERS = {
+    MOSFET: [
+        'Vto',
+        'Qg',
+        'Cgs',
+        'Cjo',
+        'Kp',
+        'Is',
+        'Ron',
+        'Rg',
+        'Tt',
+    ],
+    BJT: [
+        'Bf',
+        'Icrating',
+        'Is',
+        'Ikf',
+        'Vaf',
+        'Cje',
+        'Rc',
+        'Re',
+        'Rb',
+        'Ise',
+    ],
+    D: [
+        'Bv',
+        'Iave',
+        'Vpk',
+        'tt',
+        'Eg',
+        'Cjo',
+    ],
+    JFET: [
+        'Vto',
+        'Beta',
+        'Lambda',
+        'Is',
+    ],
+}

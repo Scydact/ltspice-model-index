@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
 import { arraysEqual, parseLtspiceNumber } from "./Utils.js";
 
@@ -109,7 +109,7 @@ export type i_ltspiceModel = {
     /** Type of model (VDMOS, BJT, D...) */
     type: string | null,
     params: {
-        [key: string]: any
+        [key: string]: ParamValue
     },
     /** Applies only to VDMOS. Defaults to nchan. */
     mosChannel?: 'nchan' | 'pchan',
@@ -135,28 +135,37 @@ export type i_ltspiceModel = {
 
 export class ParamValue {
     type: 'null' | 'number' | 'string' = 'null';
-    value: string | ReturnType<typeof parseLtspiceNumber> = null;
+    v: ReturnType<typeof parseLtspiceNumber> | { value: string } = null;
 
     constructor(str: any) {
         // find type of param
+        const stdObj = {
+            value: str,
+            toString: function () { return this.value; },
+            valueOf: function () { return this.value; }
+        };
         if (str === null || str === undefined) {
             this.type = 'null';
-            this.value = str;
+            this.v = stdObj;
         } else if (typeof (str) === 'number') {
             this.type = 'number';
-            this.value = parseLtspiceNumber(str.toString());
+            this.v = parseLtspiceNumber(str.toString());
         }
         else if (typeof (str) === 'string') {
             // try parse as number
             const x = parseLtspiceNumber(str);
             if (x) {
                 this.type = 'number';
-                this.value = x
+                this.v = x
             } else {
                 this.type = 'string';
-                this.value = str;
+                this.v = stdObj;
             }
         }
+    }
+
+    valueOf() {
+        if (this.type === 'number') return this.v.value
     }
 }
 
@@ -191,7 +200,13 @@ export function joinDb(dbArray: i_modelPack[]) {
             } as i_ltspiceModel;
 
             // fix some stuff on the model
-            if (thisModel.type) thisModel.type = thisModel.type.toUpperCase();
+            function runMethodIfExist(obj: any, exist: string, fn: string) {
+                if (obj[exist] && typeof (obj[exist][fn]) === 'function')
+                    obj[exist] = obj[exist][fn]();
+            }
+            runMethodIfExist(thisModel, 'type', 'toUpperCase');
+            // runMethodIfExist(thisModel, 'modName', 'toUpperCase');
+            // runMethodIfExist(thisModel, 'akoBaseModel', 'toUpperCase');
 
             const paramKeys = Object.keys(thisModel.params).map(x => x.toLowerCase());
             if (thisModel.type === 'VDMOS') {
@@ -231,21 +246,15 @@ export function joinDb(dbArray: i_modelPack[]) {
 
 /** Checks if two models are the same */
 export function compareModels(a: i_ltspiceModel, b: i_ltspiceModel) {
-    const c = (a, b, x: string) => a[x] === b[x];
-    const cp = (x: string) => c(a, b, x);
     if (a === b) return true;
-    return cp('modName') &&
+    const c = (a, b, x: string, map = (x) => x) => map(a[x]) === map(b[x]);
+    const cp = (x: string, fn = (x) => x) => c(a, b, x, fn);
+    const toUp = (x) => (x) ? x.toUpperCase() : x;
+    return cp('modName', toUp) &&
         cp('isAko') &&
-        cp('akoBaseModel') &&
+        cp('akoBaseModel', toUp) &&
         arraysEqual(Object.keys(a.params), Object.keys(b.params)) &&
         arraysEqual(Object.values(a.params), Object.values(b.params))
-}
-
-export const MODEL_TYPES = {
-    BJT: ['NPN', 'PNP'],
-    D: ['D'],
-    JFET: ['NJF', 'PJF'],
-    MOSFET: ['VDMOS', 'NMOS', 'PMOS'],
 }
 
 export function getModelsByType(modelList: i_ltspiceModel[]) {
@@ -282,4 +291,54 @@ export function getModelsDict(modelList: i_ltspiceModel[]) {
     return o as {
         [key: string]: i_ltspiceModel[];
     };
+}
+
+export function getParameterAnalitics(modelList: i_ltspiceModel[]) {
+    const o1 = {} as { [key: string]: ParamValue[] };
+
+    for (const model of modelList) {
+        const entries = Object.entries(model.params);
+
+        for (const e of entries) {
+            const [k, v] = e;
+            if (o1[k] === undefined) { o1[k] = [v]; }
+            else { o1[k].push(v); }
+        }
+    }
+
+    const o2 = {};
+    for (const key in o1) {
+        const x = {
+            min: Infinity,
+            max: -Infinity,
+            avg: 0,
+            std: 0,
+            count: 0,
+            strSet: new Set(),
+        }
+        const nums = o1[key].filter(x => x.type === 'number').map(x => x.v.value) as number[];
+
+        for (const n of nums) {
+            if (x.min > n) x.min = n;
+            if (x.max < n) x.max = n;
+            x.avg += n;
+            ++x.count;
+        }
+        x.avg /= x.count;
+
+        for (const n of nums) {
+            x.std += (n - x.avg) * (n - x.avg);
+        }
+        x.std = Math.sqrt(x.std / x.count);
+
+        const etc = o1[key].filter(x => x.type !== 'number').map(x => x.v.value);
+        for (const s of etc) {
+            x.strSet.add(s);
+            ++x.count;
+        }
+
+        o2[key] = x;
+    }
+
+    return o2;
 }
