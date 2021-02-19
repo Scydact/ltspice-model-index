@@ -64,6 +64,44 @@ function init(node) {
 
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/** Some file input function??? */
 function readSingleFile(e: any) {
     var file = e.target.files[0];
     setWindow('files', e.target.files);

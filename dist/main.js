@@ -47,6 +47,7 @@ function init(node) {
         node.appendChild(container);
     }
 }
+/** Some file input function??? */
 function readSingleFile(e) {
     var file = e.target.files[0];
     setWindow('files', e.target.files);
