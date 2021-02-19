@@ -1,0 +1,40 @@
+[
+    {
+        "name": "Standard",
+        "location": "standard",
+        "source": "LTSpice original install",
+        "priority": 0,
+        "files": [
+            "standard.bjt",
+            "standard.dio",
+            "standard.jft",
+            "standard.mos"
+        ]
+    },
+    {
+        "name": "LTWiki LTspice Standard Library Replacement",
+        "location": "std_plus",
+        "source": "http://ltwiki.org/index.php?title=Components_Library_and_Circuits",
+        "priority": -10,
+        "files": [
+            "standard.bjt",
+            "standard.dio",
+            "standard.jft",
+            "standard.mos"
+        ]
+    },
+    {
+        "name": "LTWiki LTspice by Bordodynov",
+        "location": "bordodynov",
+        "source": "http://ltwiki.org/index.php?title=Components_Library_and_Circuits",
+        "priority": -20,
+        "files": [
+            "standard.bjt",
+            "standard.dio",
+            "standard.jft",
+            "standard.mos",
+            "standard3.dio",
+            "VMI HV diode.dio"
+        ]
+    }
+]
