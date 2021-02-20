@@ -18,6 +18,7 @@ const APP = {
     /** HTML nodes used globally in the app. */
     nodes: {
         mainTableContainer: document.createElement('div'),
+        mainTable: null,
     },
     /** Dict where each key is a MODEL TYPE (BJT, MOSFET, D, JFET), containing a list of all the models of that kind. */
     modelsByType: {},
@@ -30,7 +31,13 @@ const APP = {
      */
     modelsByTypeByName: {},
     /** Dict where each key is a MODEL TYPE, and each value has statistic about each parameter used on it. */
-    paramStatsByModelType: {}
+    paramStatsByModelType: {},
+    /** Settings for pagination... */
+    pagination: {
+        limit: 50,
+        lastIdx: 0,
+        end: false,
+    },
 };
 setWindow({
     p,
@@ -88,10 +95,15 @@ function init(mainNode) {
         let { mainTableContainer } = APP.nodes;
         mainTableContainer.id = 'mainTableContainer';
         mainNode.appendChild(mainTableContainer);
+        // Add updatePagination on scroll
+        $(window).scroll(function () {
+            if ($(window).scrollTop() + $(window).height() > $(document).height() - 200) {
+                paginateTable();
+            }
+        });
     }
 }
 function populateTable() {
-    var _a;
     const tbl = document.createElement('table');
     const thead = tbl.createTHead();
     const rhead = thead.insertRow();
@@ -102,6 +114,20 @@ function populateTable() {
         rhead.insertCell().innerText = x;
     }
     rhead.insertCell().innerText = 'Model definition';
+    APP.pagination.end = false;
+    APP.pagination.lastIdx = 0;
+    APP.nodes.mainTable = tbl;
+    paginateTable();
+    // Replace old table
+    const { mainTableContainer } = APP.nodes;
+    $(mainTableContainer).empty();
+    mainTableContainer.appendChild(tbl);
+}
+function paginateTable() {
+    var _a;
+    if (APP.pagination.end)
+        return;
+    const tbl = APP.nodes.mainTable;
     const tbody = tbl.createTBody();
     const currModels = APP.modelsByTypeByName[APP.mode];
     const dictGetTypeParameter = {
@@ -113,7 +139,12 @@ function populateTable() {
     const getTypeParam = dictGetTypeParameter[APP.mode];
     const modelEntries = Object.entries(currModels);
     const meLen = modelEntries.length;
-    for (let i = 0; i < Math.min(meLen, 2000); ++i) {
+    let startIdx = APP.pagination.lastIdx;
+    let endIdx = Math.min(meLen, APP.pagination.limit + startIdx);
+    if (endIdx === meLen)
+        APP.pagination.end = true;
+    APP.pagination.lastIdx = endIdx + 1;
+    for (let i = startIdx; i < endIdx; ++i) {
         const [modelName, model] = modelEntries[i];
         let r = tbody.insertRow();
         r.insertCell().innerText = modelName;
@@ -138,10 +169,6 @@ function populateTable() {
         }
         r.insertCell().innerText = model.src.line;
     }
-    // Replace old table
-    const { mainTableContainer } = APP.nodes;
-    $(mainTableContainer).empty();
-    mainTableContainer.appendChild(tbl);
 }
 /** Some file input function??? */
 function readSingleFile(e) {
