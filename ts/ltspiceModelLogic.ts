@@ -212,8 +212,70 @@ export class LtspiceModel {
         return Object.fromEntries(newParamEntries);
     }
 
+    /**
+     * Tries to get parameter 'param' of the given model by searching:
+     *   1. Inside the given model.
+     *   2. Inside the AKO alias model (if its AKO)
+     *   3. Inside DEFAULT_MODELS
+     */
+    static getParam(
+        model: LtspiceModel,
+        param: string,
+        modelDbByName: { [k: string]: LtspiceModel } = null,
+        lookAtDefaultModels = true,
+        _lastSearch = null
+    ): { v: ParamValue, src: 'model' | 'ako' | 'default' | 'notFound' } {
+        const console = {
+            log: (...args) => { },
+        }
+        // 1. Inside given param
+        let a = caseUnsensitiveProperty(model.params, param);
+        if (a !== undefined) {
+            console.log('Found on model');
+            return { v: a, src: 'model' };
+        }
+
+        // 2. Inside original AKO alias.
+        if (model.isAko && model.akoBaseModel) {
+            console.log('Model is AKO ' + model.akoBaseModel)
+            if (modelDbByName && modelDbByName[model.akoBaseModel]) {
+                // Do not look at default model here!
+                let b = LtspiceModel.getParam(modelDbByName[model.akoBaseModel], param, modelDbByName, false);
+                if (b !== undefined) {
+                    console.log('Found on AKO ' + model.akoBaseModel);
+                    return { ...b, src: 'ako' };
+                }
+            } else {
+                console.log('AKO model ' + model.akoBaseModel + ' could not be found.')
+            }
+        }
+
+        // 3. Inside default (if allowed)
+        if (lookAtDefaultModels) {
+            let c = DEFAULT_MODELS[model.type] as i_defaultParamDefinition;
+            let d = caseUnsensitiveProperty(c, param);
+            if (d !== undefined) {
+                let e = tryParseDefaultParam(d);
+
+                // Param is reference to another param.
+                // _lastSearch is to avoid potential recursion
+                if (typeof (e) === 'string' && _lastSearch !== e) {
+                    console.log('Searching as parameter ' + e);
+                    return LtspiceModel.getParam(model, e, modelDbByName, lookAtDefaultModels, e);
+                }
+
+                if (e !== undefined) {
+                    console.log('Found on DEFAULT_MODEL');
+                    return { v: new ParamValue(e), src: 'default' };// return a number/string;
+                }
+            }
+        }
+        console.log('Not found!');
+        return { v: undefined, src: 'notFound' };
+    }
+
     getParam(e: string, modelDbByName: { [k: string]: LtspiceModel }, lookAtDefaultModels: boolean = true) {
-        return getParam(this, e, modelDbByName, lookAtDefaultModels, e);
+        return LtspiceModel.getParam(this, e, modelDbByName, lookAtDefaultModels);
     }
 }
 
@@ -272,10 +334,6 @@ export function joinDb(dbArray: i_modelPack[]) {
             const p = model.p;
 
             // create model
-            const thisModel = {
-                ...p,
-
-            } as i_ltspiceModel;
             const src = {
                 pack: dB.name,
                 priority: dB.priority,
@@ -395,52 +453,3 @@ export function getParameterAnalitics(modelList: LtspiceModel[]) {
 }
 
 
-/**
- * Tries to get parameter 'param' of the given model by searching:
- *   1. Inside the given model.
- *   2. Inside the AKO alias model (if its AKO)
- *   3. Inside DEFAULT_MODELS
- */
-export function getParam(model: LtspiceModel, param: string, modelDbByName: { [k: string]: LtspiceModel } = null, lookAtDefaultModels = true, _lastSearch = null) {
-    const { params, type, isAko, akoBaseModel } = model;
-
-    // 1. Inside given param
-    let a = caseUnsensitiveProperty(model.params, param);
-    if (a !== undefined) {
-        console.log('Found on model');
-        return a;
-    }
-
-    // 2. Inside original AKO alias.
-    if (isAko && akoBaseModel && modelDbByName && modelDbByName[akoBaseModel]) {
-        // Do not look at default model here!
-        let b = getParam(modelDbByName[akoBaseModel], param, modelDbByName, false);
-        if (b !== undefined) {
-            console.log('Found on AKO ' + akoBaseModel);
-            return (b as ParamValue);
-        }
-    }
-
-    // 3. Inside default (if allowed)
-    if (lookAtDefaultModels) {
-        let c = DEFAULT_MODELS[type] as i_defaultParamDefinition;
-        let d = caseUnsensitiveProperty(c, param);
-        if (d !== undefined) {
-            let e = tryParseDefaultParam(d);
-
-            // Param is reference to another param.
-            // _lastSearch is to avoid potential recursion
-            if (typeof (e) === 'string' && _lastSearch !== e) {
-                console.log('Searching as parameter ' + e);
-                return getParam(model, e, modelDbByName, lookAtDefaultModels, e);
-            }
-
-            if (e !== undefined) {
-                console.log('Found on DEFAULT_MODEL');
-                return new ParamValue(e)// return a number/string;
-            }
-        }
-    }
-    console.log('Not found!');
-    return undefined;
-}

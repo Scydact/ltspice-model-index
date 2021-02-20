@@ -26,6 +26,10 @@ export function arraysEqual(a: any[], b: any[]) {
 }
 
 export function toLtspiceNumber(n: number, uInsteadOfMu = false) {
+    if (n === 0 || isNaN(n)) {
+        return n.toString();
+    }
+
     const suffix = ['f', 'p', 'n', (uInsteadOfMu ? 'u' : 'μ'), 'm', '', 'k', 'Meg', 'G', 'T'];
     const exp = Math.floor(Math.log10(Math.abs(n)) / 3);
     if (exp > 4 || exp < -5) {

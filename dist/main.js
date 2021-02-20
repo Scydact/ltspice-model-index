@@ -1,7 +1,7 @@
 import { createElement, createRadio, parseLtspiceNumber, setWindow } from "./Utils.js";
 import * as p from "./StrParse.js";
 import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
-import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb, getParam } from "./ltspiceModelLogic.js";
+import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
 /**
  * List of packs loaded from ./data/models.json.
  * Gets merged with any custom packs made/loaded from the user's PC.
@@ -64,7 +64,7 @@ function rebuildPacks() {
     APP.paramStatsByModelType = Object.fromEntries(Object.entries(APP.modelsByTypeByName)
         .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))]));
 }
-setWindow({ parseLtspiceNumber, getParam });
+setWindow({ parseLtspiceNumber });
 function init(mainNode) {
     const $mainNode = $(mainNode).empty();
     // Create mode selection thing 
@@ -109,7 +109,7 @@ function populateTable() {
         JFET: (model) => model.type,
         D: (model) => { var _a; return (_a = model.params.type) === null || _a === void 0 ? void 0 : _a.v.value.toString(); },
         MOSFET: (model) => model.mosChannel,
-    };
+    }; // TODO: Move inside model
     const getTypeParam = dictGetTypeParameter[APP.mode];
     const modelEntries = Object.entries(currModels);
     const meLen = modelEntries.length;
@@ -120,7 +120,21 @@ function populateTable() {
         r.insertCell().innerText = model.src.pack;
         r.insertCell().innerText = getTypeParam(model);
         for (const x of DEFAULT_PARAMETERS[APP.mode]) {
-            r.insertCell().innerText = (_a = model.params[x]) === null || _a === void 0 ? void 0 : _a.v.toString();
+            //model.params[x]?.v.toString();
+            const a = model.getParam(x, currModels);
+            const b = (_a = a.v) === null || _a === void 0 ? void 0 : _a.toString();
+            const specialChars = {
+                undefined: ' ',
+                Infinity: '∞',
+            };
+            let c = r.insertCell();
+            c.innerText = specialChars[b] || b;
+            if (a.src === 'default')
+                c.style.color = 'blue';
+            else if (a.src === 'ako')
+                c.style.color = 'green';
+            else if (a.src === 'notFound')
+                c.style.color = 'red';
         }
         r.insertCell().innerText = model.src.line;
     }

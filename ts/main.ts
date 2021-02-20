@@ -2,7 +2,7 @@ import { arraysEqual, createElement, createRadio, parseLtspiceNumber, setWindow 
 import * as d from "./ltspiceModelParser.js";
 import * as p from "./StrParse.js";
 import { DEFAULT_MODELS, DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
-import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, LtspiceModel, i_modelPack, joinDb, parseModelDb, getParam } from "./ltspiceModelLogic.js";
+import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, LtspiceModel, i_modelPack, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
 
 declare const $: JQueryStatic;
 
@@ -80,7 +80,7 @@ function rebuildPacks() {
     );
 }
 
-setWindow({ parseLtspiceNumber, getParam });
+setWindow({ parseLtspiceNumber });
 
 
 function init(mainNode) {
@@ -136,7 +136,7 @@ function populateTable() {
         JFET: (model: LtspiceModel) => model.type,
         D: (model: LtspiceModel) => model.params.type?.v.value.toString(),
         MOSFET: (model: LtspiceModel) => model.mosChannel,
-    }
+    } // TODO: Move inside model
     const getTypeParam = dictGetTypeParameter[APP.mode];
     const modelEntries = Object.entries(currModels);
     const meLen = modelEntries.length;
@@ -148,7 +148,18 @@ function populateTable() {
         r.insertCell().innerText = getTypeParam(model);
 
         for (const x of DEFAULT_PARAMETERS[APP.mode]) {
-            r.insertCell().innerText = model.params[x]?.v.toString();
+            //model.params[x]?.v.toString();
+            const a = model.getParam(x, currModels);
+            const b = a.v?.toString();
+            const specialChars = {
+                undefined: ' ',
+                Infinity: '∞',
+            };
+            let c = r.insertCell()
+            c.innerText = specialChars[b] || b;
+            if (a.src === 'default') c.style.color = 'blue';
+            else if (a.src === 'ako') c.style.color = 'green';
+            else if (a.src === 'notFound') c.style.color = 'red';
         }
 
         r.insertCell().innerText = model.src.line;
