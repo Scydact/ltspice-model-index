@@ -29,40 +29,57 @@ export function getModelDb() {
     });
 }
 /** Parses fileContents from getModelDb() and puts them in a list. */
-export function parseModelDb(modelDbList) {
-    if (!(modelDbList instanceof Array && modelDbList.length > 1))
-        return [];
-    const out = [];
-    for (const pack of modelDbList) {
-        const oPack = {
-            displayName: pack.name,
-            name: pack.location,
-            source: pack.source,
-            priority: pack.priority,
-            data: [],
-        };
-        let count = 0;
-        for (const fdKey in pack.fileData) {
-            const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
-            for (let i = 0; i < lines.length; ++i) {
-                const line = lines[i];
-                if (line === '')
-                    continue;
-                const parsedLine = d.parser.run(line);
-                oPack.data.push({
-                    line,
-                    p: parsedLine.result,
-                    err: parsedLine.error,
-                    i,
-                    src: fdKey,
-                });
-                ++count;
+export function parseModelDb(modelDbList, progressCallback = (pack_i, pack_l, file_i, file_l, line_i, line_l, libStr, fileStr) => { }) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!(modelDbList instanceof Array && modelDbList.length > 1))
+            return [];
+        const out = [];
+        //(const pack of modelDbList)
+        const packLen = modelDbList.length;
+        for (let packIdx = 0; packIdx < packLen; ++packIdx) {
+            const pack = modelDbList[packIdx];
+            const oPack = {
+                displayName: pack.name,
+                name: pack.location,
+                source: pack.source,
+                priority: pack.priority,
+                data: [],
+            };
+            let count = 0;
+            const fileDataKeys = Object.keys(pack.fileData);
+            const fdeLen = fileDataKeys.length;
+            // used to be (const fdKey in pack.fileData), updated to show progress. 
+            for (let fdei = 0; fdei < fdeLen; ++fdei) {
+                const fdKey = fileDataKeys[fdei];
+                const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
+                const linesLen = lines.length;
+                const progressDivs = Math.min(300, Math.max(1, Math.round(linesLen / 10)));
+                for (let i = 0; i < linesLen; ++i) {
+                    // Progress thing... 
+                    // makes actual process slower, 
+                    // but is better than .5s of unexplained lagging.
+                    if (progressCallback && (i % progressDivs === 0) || (i === linesLen - 1)) {
+                        yield progressCallback(packIdx, packLen, fdei, fdeLen, i + 1, linesLen, pack.location, fdKey);
+                    }
+                    const line = lines[i];
+                    if (line === '')
+                        continue;
+                    const parsedLine = d.parser.run(line);
+                    oPack.data.push({
+                        line,
+                        p: parsedLine.result,
+                        err: parsedLine.error,
+                        i,
+                        src: fdKey,
+                    });
+                    ++count;
+                }
             }
+            out.push(oPack);
+            console.log(`Loaded ${count} models from pack ${oPack.name}.`);
         }
-        out.push(oPack);
-        console.log(`Loaded ${count} models from pack ${oPack.name}.`);
-    }
-    return out;
+        return out;
+    });
 }
 /** Fully defined ltspice model */
 export class LtspiceModel {

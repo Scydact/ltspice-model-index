@@ -2,6 +2,11 @@
     box-sizing: border-box;
 }
 
+:root {
+    --progress-bar-fill: rgb(82, 231, 82);
+    --progress-bar-background: transparent;
+}
+
 body {
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     padding: 1em;
@@ -36,7 +41,17 @@ h1 {
     }
 }
 .hidden {
-    display: none;
+    display: none !important;
+}
+
+.progress {
+    width: 100%;
+    min-height: 3.5em;
+    border: 2px solid black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.4em;
 }
 
 table {

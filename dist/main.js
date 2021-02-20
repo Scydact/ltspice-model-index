@@ -1,4 +1,13 @@
-import { createElement, createRadio, parseLtspiceNumber, setWindow } from "./Utils.js";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+import { createElement, createRadio, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
 import * as p from "./StrParse.js";
 import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
 import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
@@ -20,6 +29,8 @@ const APP = {
         mainTableContainer: document.createElement('div'),
         mainTable: null,
     },
+    /** Single progress bar added to the page. */
+    progressBar: null,
     /** Dict where each key is a MODEL TYPE (BJT, MOSFET, D, JFET), containing a list of all the models of that kind. */
     modelsByType: {},
     /** Dict where each key is a model name, and each value is a possible model name. */
@@ -46,34 +57,121 @@ setWindow({
     joinDb,
     APP,
 });
+class ProgressBar {
+    constructor() {
+        this.hidden = true;
+        this.node = document.createElement('div');
+        this.node.classList.add('progress', 'hidden');
+    }
+    setVisibility(val) {
+        if (val === undefined)
+            return this.setVisibility(this.hidden);
+        this.hidden = !val;
+        this.node.classList.toggle('hidden', this.hidden);
+        return this;
+    }
+    getVisibility() {
+        return !this.hidden;
+    }
+    setProgress(n) {
+        const n1 = (100 * n).toPrecision(15);
+        const t = [
+            'linear-gradient(to right, ',
+            `var(--progress-bar-fill) ${n1}%, `,
+            `var(--progress-bar-background) ${n1}%)`,
+        ].join('');
+        this.node.style.backgroundImage = t;
+        return this;
+    }
+    getProgress() {
+        return this.progress;
+    }
+    setText(str) {
+        this.node.innerText = str;
+        return this;
+    }
+    getText() {
+        return this.node.innerText;
+    }
+    clear() {
+        this.setText('');
+        this.setProgress(0);
+        return this;
+    }
+    redraw() {
+        if (!this.hidden) {
+            this.node.style.display = 'none';
+            this.node.offsetHeight; // no need to store this anywhere, the reference is enough
+            this.node.style.display = '';
+        }
+        return this;
+    }
+}
 window.addEventListener('load', function () {
-    document.getElementById('file-input')
-        .addEventListener('change', readSingleFile, false);
-    init(document.getElementById('main'));
-    getModelDb().then((r) => {
-        DB_PACKS = parseModelDb(r);
-        rebuildPacks();
+    return __awaiter(this, void 0, void 0, function* () {
+        document.getElementById('file-input')
+            .addEventListener('change', readSingleFile, false);
+        init(document.getElementById('main'));
+        APP.progressBar
+            .clear()
+            .setText('Loading models from packs...')
+            .setVisibility(true);
+        const modelDb = yield getModelDb();
+        APP.progressBar
+            .setProgress(0.33)
+            .setText('Parsing models...');
+        const updateFn = (a, al, b, bl, c, cl, libStr, fileStr) => __awaiter(this, void 0, void 0, function* () {
+            const p = (a + (b + (c / cl)) / bl) / al;
+            const ps = (100 * p).toFixed(2);
+            const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`;
+            APP.progressBar.setProgress(p).setText(s);
+            yield sleep();
+        });
+        yield sleep();
+        DB_PACKS = yield parseModelDb(modelDb, updateFn);
+        yield sleep();
+        yield rebuildPacks();
+        yield sleep();
         populateTable();
     });
 });
 function rebuildPacks() {
-    // TODO: Custom pack support would go here (APP.packs = [...parseModeDb, ...customPacks]);
-    APP.packs = [...DB_PACKS];
-    APP.modelList = joinDb(APP.packs);
-    APP.modelsByType = getModelsByType(APP.modelList);
-    APP.modelsByName = getModelsDict(APP.modelList);
-    APP.modelsByTypeByName = Object.fromEntries(Object.entries(APP.modelsByType)
-        .map(x => [
-        x[0],
-        Object.fromEntries(Object.entries(getModelsDict(x[1]))
-            .map(y => [y[0], y[1][0]]))
-    ]));
-    APP.paramStatsByModelType = Object.fromEntries(Object.entries(APP.modelsByTypeByName)
-        .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))]));
+    return __awaiter(this, void 0, void 0, function* () {
+        const t = '[Rebuilding model database]: ';
+        APP.progressBar.clear().setVisibility(true);
+        const ctot = 3; // amount of await progress()
+        let count = 0;
+        const progress = (str) => __awaiter(this, void 0, void 0, function* () {
+            APP.progressBar.setProgress(++count / ctot).setText(t + str);
+            yield sleep();
+        });
+        yield progress('Joining model packs.');
+        // TODO: Custom pack support would go here (APP.packs = [...parseModeDb, ...customPacks]);
+        APP.packs = [...DB_PACKS];
+        APP.modelList = joinDb(APP.packs);
+        yield progress('Sorting by type & model');
+        APP.modelsByType = getModelsByType(APP.modelList);
+        APP.modelsByName = getModelsDict(APP.modelList);
+        APP.modelsByTypeByName = Object.fromEntries(Object.entries(APP.modelsByType)
+            .map(x => [
+            x[0],
+            Object.fromEntries(Object.entries(getModelsDict(x[1]))
+                .map(y => [y[0], y[1][0]]))
+        ]));
+        yield progress('Getting parameter statistics.');
+        APP.paramStatsByModelType = Object.fromEntries(Object.entries(APP.modelsByTypeByName)
+            .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))]));
+        APP.progressBar.clear().setVisibility(false);
+    });
 }
 setWindow({ parseLtspiceNumber });
 function init(mainNode) {
     const $mainNode = $(mainNode).empty();
+    // Append progress bar
+    {
+        APP.progressBar = new ProgressBar();
+        mainNode.appendChild(APP.progressBar.node);
+    }
     // Create mode selection thing 
     {
         let container = createElement(mainNode, 'div', null, ['select-mode-container']);
@@ -96,11 +194,11 @@ function init(mainNode) {
         mainTableContainer.id = 'mainTableContainer';
         mainNode.appendChild(mainTableContainer);
         // Add updatePagination on scroll
-        $(window).scroll(function () {
-            if ($(window).scrollTop() + $(window).height() > $(document).height() - 200) {
+        window.onscroll = function () {
+            if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
                 paginateTable();
             }
-        });
+        };
     }
 }
 function populateTable() {

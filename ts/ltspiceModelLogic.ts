@@ -61,11 +61,26 @@ export type i_preLtspiceParseResults = {
 }
 
 /** Parses fileContents from getModelDb() and puts them in a list. */
-export function parseModelDb(modelDbList: i_modelDb[]) {
+export async function parseModelDb(
+    modelDbList: i_modelDb[],
+    progressCallback = (
+        pack_i,
+        pack_l,
+        file_i,
+        file_l,
+        line_i,
+        line_l,
+        libStr,
+        fileStr,
+    ) => { }
+) {
     if (!(modelDbList instanceof Array && modelDbList.length > 1)) return [];
 
     const out = [] as i_modelPack[];
-    for (const pack of modelDbList) {
+    //(const pack of modelDbList)
+    const packLen = modelDbList.length
+    for (let packIdx = 0; packIdx < packLen; ++packIdx) {
+        const pack = modelDbList[packIdx];
         const oPack = {
             displayName: pack.name,
             name: pack.location,
@@ -75,9 +90,33 @@ export function parseModelDb(modelDbList: i_modelDb[]) {
         } as i_modelPack;
 
         let count = 0;
-        for (const fdKey in pack.fileData) {
+
+        const fileDataKeys = Object.keys(pack.fileData);
+        const fdeLen = fileDataKeys.length;
+        // used to be (const fdKey in pack.fileData), updated to show progress. 
+        for (let fdei = 0; fdei < fdeLen; ++fdei) {
+            const fdKey = fileDataKeys[fdei];
             const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
-            for (let i = 0; i < lines.length; ++i) {
+            const linesLen = lines.length;
+            const progressDivs = Math.min(300, Math.max(1, Math.round(linesLen / 10)))
+            for (let i = 0; i < linesLen; ++i) {
+
+                // Progress thing... 
+                // makes actual process slower, 
+                // but is better than .5s of unexplained lagging.
+                if (progressCallback && (i % progressDivs === 0) || (i === linesLen - 1)) {
+                    await progressCallback(
+                        packIdx,
+                        packLen,
+                        fdei,
+                        fdeLen,
+                        i + 1,
+                        linesLen,
+                        pack.location,
+                        fdKey,
+                    );
+                }
+
                 const line = lines[i];
                 if (line === '') continue;
                 const parsedLine = d.parser.run(line);

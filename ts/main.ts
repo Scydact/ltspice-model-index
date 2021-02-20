@@ -1,7 +1,7 @@
-import { arraysEqual, createElement, createRadio, parseLtspiceNumber, setWindow } from "./Utils.js";
+import { createElement, createRadio, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
 import * as d from "./ltspiceModelParser.js";
 import * as p from "./StrParse.js";
-import { DEFAULT_MODELS, DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
+import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
 import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, LtspiceModel, i_modelPack, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
 
 declare const $: JQueryStatic;
@@ -25,6 +25,8 @@ const APP = {
         mainTableContainer: document.createElement('div'),
         mainTable: null as HTMLTableElement,
     },
+    /** Single progress bar added to the page. */
+    progressBar: null as ProgressBar,
     /** Dict where each key is a MODEL TYPE (BJT, MOSFET, D, JFET), containing a list of all the models of that kind. */
     modelsByType: {} as { [key: string]: LtspiceModel[] },
     /** Dict where each key is a model name, and each value is a possible model name. */
@@ -54,22 +56,118 @@ setWindow({
     APP,
 });
 
-window.addEventListener('load', function () {
+class ProgressBar {
+    node: HTMLElement;
+    progress: 0;
+    hidden: boolean = true;
+
+    constructor() {
+        this.node = document.createElement('div');
+        this.node.classList.add('progress', 'hidden');
+    }
+
+    setVisibility(val: boolean) {
+        if (val === undefined) return this.setVisibility(this.hidden);
+        this.hidden = !val;
+        this.node.classList.toggle('hidden', this.hidden);
+        return this;
+    }
+
+    getVisibility() {
+        return !this.hidden;
+    }
+
+    setProgress(n: number) {
+        const n1 = (100 * n).toPrecision(15);
+        const t = [
+            'linear-gradient(to right, ',
+            `var(--progress-bar-fill) ${n1}%, `,
+            `var(--progress-bar-background) ${n1}%)`,
+        ].join('');
+        this.node.style.backgroundImage = t;
+        return this;
+    }
+
+    getProgress() {
+        return this.progress;
+    }
+
+    setText(str: string) {
+        this.node.innerText = str;
+        return this;
+    }
+
+    getText() {
+        return this.node.innerText;
+    }
+
+    clear() {
+        this.setText('');
+        this.setProgress(0);
+        return this;
+    }
+
+    redraw() {
+        if (!this.hidden) {
+            this.node.style.display = 'none';
+            this.node.offsetHeight; // no need to store this anywhere, the reference is enough
+            this.node.style.display = '';
+        }
+        return this;
+    }
+
+}
+
+window.addEventListener('load', async function () {
     document.getElementById('file-input')
         .addEventListener('change', readSingleFile, false);
     init(document.getElementById('main'));
 
-    getModelDb().then((r) => {
-        DB_PACKS = parseModelDb(r);
-        rebuildPacks();
-        populateTable();
-    })
+    APP.progressBar
+        .clear()
+        .setText('Loading models from packs...')
+        .setVisibility(true);
+
+    const modelDb = await getModelDb();
+
+    APP.progressBar
+        .setProgress(0.33)
+        .setText('Parsing models...');
+
+    const updateFn = async (a, al, b, bl, c, cl, libStr, fileStr) => {
+        const p = (a + (b + (c / cl)) / bl) / al;
+        const ps = (100 * p).toFixed(2);
+        const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`
+        APP.progressBar.setProgress(p).setText(s);
+        await sleep();
+    };
+
+    await sleep();
+    DB_PACKS = await parseModelDb(modelDb, updateFn);
+    await sleep();
+    await rebuildPacks();
+    await sleep();
+    populateTable();
+
 });
 
-function rebuildPacks() {
+async function rebuildPacks() {
+
+    const t = '[Rebuilding model database]: ';
+    APP.progressBar.clear().setVisibility(true);
+    const ctot = 3; // amount of await progress()
+    let count = 0;
+    const progress = async (str) => {
+        APP.progressBar.setProgress(++count / ctot).setText(t + str);
+        await sleep();
+    }
+
+    await progress('Joining model packs.');
     // TODO: Custom pack support would go here (APP.packs = [...parseModeDb, ...customPacks]);
     APP.packs = [...DB_PACKS];
     APP.modelList = joinDb(APP.packs);
+
+    await progress('Sorting by type & model');
     APP.modelsByType = getModelsByType(APP.modelList);
     APP.modelsByName = getModelsDict(APP.modelList);
     APP.modelsByTypeByName = Object.fromEntries(
@@ -82,10 +180,14 @@ function rebuildPacks() {
                 )
             ])
     );
+
+    await progress('Getting parameter statistics.');
     APP.paramStatsByModelType = Object.fromEntries(
         Object.entries(APP.modelsByTypeByName)
             .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))])
     );
+
+    APP.progressBar.clear().setVisibility(false);
 }
 
 setWindow({ parseLtspiceNumber });
@@ -93,6 +195,12 @@ setWindow({ parseLtspiceNumber });
 
 function init(mainNode) {
     const $mainNode = $(mainNode).empty();
+
+    // Append progress bar
+    {
+        APP.progressBar = new ProgressBar();
+        mainNode.appendChild(APP.progressBar.node);
+    }
 
     // Create mode selection thing 
     {
@@ -120,11 +228,11 @@ function init(mainNode) {
         mainNode.appendChild(mainTableContainer);
 
         // Add updatePagination on scroll
-        $(window).scroll(function () {
-            if ($(window).scrollTop() + $(window).height() > $(document).height() - 200) {
-                paginateTable()
+        window.onscroll = function() {
+            if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
+                paginateTable();
             }
-        });
+        };
     }
 }
 

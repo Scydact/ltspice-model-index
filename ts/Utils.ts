@@ -158,3 +158,22 @@ export function runMethodIfExist(obj: any, exist: string, fn: string) {
     if (obj[exist] && typeof (obj[exist][fn]) === 'function')
         obj[exist] = obj[exist][fn]();
 }
+
+export function debounce(func, wait, immediate) {
+    var timeout;
+    return function () {
+        var context = this, args = arguments;
+        var later = function () {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+    };
+};
+
+export function sleep(time = 0) {
+    return new Promise((r) => setTimeout(r, time));
+}
