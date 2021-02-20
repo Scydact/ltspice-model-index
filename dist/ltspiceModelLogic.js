@@ -7,9 +7,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { DEFAULT_MODELS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
-import { arraysEqual, parseLtspiceNumber } from "./Utils.js";
+import { arraysEqual, caseUnsensitiveProperty, LtspiceNumber, parseLtspiceNumber } from "./Utils.js";
 /** Loads models from this app's ./data/models */
 export function getModelDb() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -64,6 +64,63 @@ export function parseModelDb(modelDbList) {
     }
     return out;
 }
+/** Fully defined ltspice model */
+export class LtspiceModel {
+    constructor(obj, src) {
+        /** If this model is defined as an AKO alias. */
+        this.isAko = false;
+        // Default model params
+        const o = Object.assign({ modName: '', type: 'D', isAko: false, akoBaseModel: null, params: {} }, obj);
+        this.modName = o.modName;
+        this.type = o.type.toUpperCase();
+        this.isAko = o.isAko;
+        this.akoBaseModel = o.akoBaseModel;
+        const params = LtspiceModel.parseParams(o.params);
+        this.params = params;
+        const paramKeys = Object.keys(params).map(x => x.toLowerCase());
+        if (obj.type === 'VDMOS') {
+            // find channel type
+            let c = 'nchan'; // default
+            if (paramKeys.includes('pchan'))
+                c = 'pchan';
+            this.mosChannel = c;
+        }
+        if (obj.type === 'D') {
+            // TODO: fix diode type formatting
+        }
+        this.src = src || {
+            pack: 'nopack',
+            priority: 10,
+            file: '',
+            lineIndex: 0,
+            line: '',
+            err: null,
+            params: obj.params || Object.fromEntries(Object.entries(params)
+                .map(x => [x[0], x[1].toString()]))
+        };
+    }
+    /** Maps and corrects a dict  */
+    static parseParams(obj, modelType = '') {
+        const newParamEntries = [];
+        const THIS_MODEL_PARAM_KEYS = Object.keys(DEFAULT_MODELS[modelType] || {});
+        const TMPK_LC = THIS_MODEL_PARAM_KEYS.map(x => x.toLowerCase());
+        for (const entry of Object.entries(obj)) {
+            const [key, val] = entry;
+            let newEntry = [key, val];
+            // Parse value (if a number)
+            newEntry[1] = new ParamValue(val);
+            // key proper capitalization
+            const keyIdx = TMPK_LC.indexOf(key.toLowerCase());
+            if (keyIdx !== -1)
+                newEntry[0] = THIS_MODEL_PARAM_KEYS[keyIdx];
+            newParamEntries.push(newEntry);
+        }
+        return Object.fromEntries(newParamEntries);
+    }
+    getParam(e, modelDbByName, lookAtDefaultModels = true) {
+        return getParam(this, e, modelDbByName, lookAtDefaultModels, e);
+    }
+}
 export class ParamValue {
     constructor(str) {
         this.type = 'null';
@@ -94,10 +151,22 @@ export class ParamValue {
                 this.v = stdObj;
             }
         }
+        else if (str instanceof LtspiceNumber) {
+            this.type = 'number';
+            this.v = str;
+        }
     }
     valueOf() {
         if (this.type === 'number')
             return this.v.value;
+        else
+            return this.v;
+    }
+    toString() {
+        if (this.type !== 'null')
+            return this.v.toString();
+        else
+            return '';
     }
 }
 /** Joins and post-processes each given pack. */
@@ -108,57 +177,20 @@ export function joinDb(dbArray) {
     for (const dB of dbArray) {
         for (const model of dB.data) {
             const p = model.p;
-            const defaultModel = {
-                modName: null,
-                akoBaseModel: null,
-                isAko: false,
-                type: null,
-                params: {},
-            };
             // create model
-            const thisModel = Object.assign(Object.assign(Object.assign({}, defaultModel), p), { src: {
-                    pack: dB.name,
-                    priority: dB.priority,
-                    file: model.src,
-                    lineIndex: model.i,
-                    line: model.line,
-                    err: model.err,
-                } });
+            const thisModel = Object.assign({}, p);
+            const src = {
+                pack: dB.name,
+                priority: dB.priority,
+                file: model.src,
+                lineIndex: model.i,
+                line: model.line,
+                err: model.err,
+            };
             // fix some stuff on the model
-            function runMethodIfExist(obj, exist, fn) {
-                if (obj[exist] && typeof (obj[exist][fn]) === 'function')
-                    obj[exist] = obj[exist][fn]();
-            }
-            runMethodIfExist(thisModel, 'type', 'toUpperCase');
-            // runMethodIfExist(thisModel, 'modName', 'toUpperCase');
-            // runMethodIfExist(thisModel, 'akoBaseModel', 'toUpperCase');
-            const paramKeys = Object.keys(thisModel.params).map(x => x.toLowerCase());
-            if (thisModel.type === 'VDMOS') {
-                // find channel type
-                let c = 'nchan'; // default
-                if (paramKeys.includes('pchan'))
-                    c = 'pchan';
-                thisModel.mosChannel = c;
-            }
-            // Process params
-            thisModel.src.params = thisModel.params;
-            const newParamEntries = [];
-            const THIS_MODEL_PARAM_KEYS = Object.keys(DEFAULT_MODELS[thisModel.type] || {});
-            const TMPK_LC = THIS_MODEL_PARAM_KEYS.map(x => x.toLowerCase());
-            for (const entry of Object.entries(thisModel.src.params)) {
-                const [key, val] = entry;
-                let newEntry = [key, val];
-                // Parse value (if a number)
-                newEntry[1] = new ParamValue(val);
-                // key proper capitalization
-                const keyIdx = TMPK_LC.indexOf(key.toLowerCase());
-                if (keyIdx !== -1)
-                    newEntry[0] = THIS_MODEL_PARAM_KEYS[keyIdx];
-                newParamEntries.push(newEntry);
-            }
-            thisModel.params = Object.fromEntries(newParamEntries);
+            const m = new LtspiceModel(Object.assign({}, p), src);
             // push the model
-            o.push(thisModel);
+            o.push(m);
         }
     }
     return o.sort((a, b) => b.src.priority - a.src.priority);
@@ -255,5 +287,49 @@ export function getParameterAnalitics(modelList) {
         o2[key] = x;
     }
     return o2;
+}
+/**
+ * Tries to get parameter 'param' of the given model by searching:
+ *   1. Inside the given model.
+ *   2. Inside the AKO alias model (if its AKO)
+ *   3. Inside DEFAULT_MODELS
+ */
+export function getParam(model, param, modelDbByName = null, lookAtDefaultModels = true, _lastSearch = null) {
+    const { params, type, isAko, akoBaseModel } = model;
+    // 1. Inside given param
+    let a = caseUnsensitiveProperty(model.params, param);
+    if (a !== undefined) {
+        console.log('Found on model');
+        return a;
+    }
+    // 2. Inside original AKO alias.
+    if (isAko && akoBaseModel && modelDbByName && modelDbByName[akoBaseModel]) {
+        // Do not look at default model here!
+        let b = getParam(modelDbByName[akoBaseModel], param, modelDbByName, false);
+        if (b !== undefined) {
+            console.log('Found on AKO ' + akoBaseModel);
+            return b;
+        }
+    }
+    // 3. Inside default (if allowed)
+    if (lookAtDefaultModels) {
+        let c = DEFAULT_MODELS[type];
+        let d = caseUnsensitiveProperty(c, param);
+        if (d !== undefined) {
+            let e = tryParseDefaultParam(d);
+            // Param is reference to another param.
+            // _lastSearch is to avoid potential recursion
+            if (typeof (e) === 'string' && _lastSearch !== e) {
+                console.log('Searching as parameter ' + e);
+                return getParam(model, e, modelDbByName, lookAtDefaultModels, e);
+            }
+            if (e !== undefined) {
+                console.log('Found on DEFAULT_MODEL');
+                return new ParamValue(e); // return a number/string;
+            }
+        }
+    }
+    console.log('Not found!');
+    return undefined;
 }
 //# sourceMappingURL=ltspiceModelLogic.js.map

@@ -1,7 +1,7 @@
 import { createElement, createRadio, parseLtspiceNumber, setWindow } from "./Utils.js";
 import * as p from "./StrParse.js";
-import { MODEL_TYPES } from "./ltspiceDefaultModels.js";
-import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
+import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
+import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb, getParam } from "./ltspiceModelLogic.js";
 /**
  * List of packs loaded from ./data/models.json.
  * Gets merged with any custom packs made/loaded from the user's PC.
@@ -64,7 +64,7 @@ function rebuildPacks() {
     APP.paramStatsByModelType = Object.fromEntries(Object.entries(APP.modelsByTypeByName)
         .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))]));
 }
-setWindow({ parseLtspiceNumber });
+setWindow({ parseLtspiceNumber, getParam });
 function init(mainNode) {
     const $mainNode = $(mainNode).empty();
     // Create mode selection thing 
@@ -91,12 +91,18 @@ function init(mainNode) {
     }
 }
 function populateTable() {
+    var _a;
     const tbl = document.createElement('table');
-    const rhead = tbl.insertRow();
+    const thead = tbl.createTHead();
+    const rhead = thead.insertRow();
     rhead.insertCell().innerText = 'Model name';
     rhead.insertCell().innerText = 'Library';
     rhead.insertCell().innerText = 'Type';
+    for (const x of DEFAULT_PARAMETERS[APP.mode]) {
+        rhead.insertCell().innerText = x;
+    }
     rhead.insertCell().innerText = 'Model definition';
+    const tbody = tbl.createTBody();
     const currModels = APP.modelsByTypeByName[APP.mode];
     const dictGetTypeParameter = {
         BJT: (model) => model.type,
@@ -105,12 +111,17 @@ function populateTable() {
         MOSFET: (model) => model.mosChannel,
     };
     const getTypeParam = dictGetTypeParameter[APP.mode];
-    for (const modelName in currModels) {
-        let model = currModels[modelName];
-        let r = tbl.insertRow();
+    const modelEntries = Object.entries(currModels);
+    const meLen = modelEntries.length;
+    for (let i = 0; i < Math.min(meLen, 2000); ++i) {
+        const [modelName, model] = modelEntries[i];
+        let r = tbody.insertRow();
         r.insertCell().innerText = modelName;
         r.insertCell().innerText = model.src.pack;
         r.insertCell().innerText = getTypeParam(model);
+        for (const x of DEFAULT_PARAMETERS[APP.mode]) {
+            r.insertCell().innerText = (_a = model.params[x]) === null || _a === void 0 ? void 0 : _a.v.toString();
+        }
         r.insertCell().innerText = model.src.line;
     }
     // Replace old table

@@ -1,8 +1,8 @@
 import { arraysEqual, createElement, createRadio, parseLtspiceNumber, setWindow } from "./Utils.js";
 import * as d from "./ltspiceModelParser.js";
 import * as p from "./StrParse.js";
-import { DEFAULT_MODELS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
-import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, i_ltspiceModel, i_modelPack, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
+import { DEFAULT_MODELS, DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
+import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, LtspiceModel, i_modelPack, joinDb, parseModelDb, getParam } from "./ltspiceModelLogic.js";
 
 declare const $: JQueryStatic;
 
@@ -19,21 +19,21 @@ const APP = {
     /** Loaded model pack definitions. */
     packs: [] as i_modelPack[],
     /** All the loaded models. */
-    modelList: [] as i_ltspiceModel[],
+    modelList: [] as LtspiceModel[],
     /** HTML nodes used globally in the app. */
     nodes: {
         mainTableContainer: document.createElement('div'),
     },
     /** Dict where each key is a MODEL TYPE (BJT, MOSFET, D, JFET), containing a list of all the models of that kind. */
-    modelsByType: {} as { [key: string]: i_ltspiceModel[] },
+    modelsByType: {} as { [key: string]: LtspiceModel[] },
     /** Dict where each key is a model name, and each value is a possible model name. */
-    modelsByName: {} as { [key: string]: i_ltspiceModel[] },
+    modelsByName: {} as { [key: string]: LtspiceModel[] },
     /** 
      * Probably the list that will be used the most. 
      * Object that, for each type (BJT, D, MOSFET, JFET), contains a single model definition for every single model,
      * sorted in order of priority (update pack priority to change!).
      */
-    modelsByTypeByName: {} as { [key: string]: { [key: string]: i_ltspiceModel } },
+    modelsByTypeByName: {} as { [key: string]: { [key: string]: LtspiceModel } },
     /** Dict where each key is a MODEL TYPE, and each value has statistic about each parameter used on it. */
     paramStatsByModelType: {} as { [key: string]: ReturnType<typeof getParameterAnalitics> }
 };
@@ -80,7 +80,7 @@ function rebuildPacks() {
     );
 }
 
-setWindow({ parseLtspiceNumber });
+setWindow({ parseLtspiceNumber, getParam });
 
 
 function init(mainNode) {
@@ -116,27 +116,41 @@ function init(mainNode) {
 function populateTable() {
     const tbl = document.createElement('table');
 
-    const rhead = tbl.insertRow();
+    const thead = tbl.createTHead();
+    const rhead = thead.insertRow();
     rhead.insertCell().innerText = 'Model name';
     rhead.insertCell().innerText = 'Library';
     rhead.insertCell().innerText = 'Type';
 
+    for (const x of DEFAULT_PARAMETERS[APP.mode]) {
+        rhead.insertCell().innerText = x;
+    }
+
     rhead.insertCell().innerText = 'Model definition';
+
+    const tbody = tbl.createTBody();
 
     const currModels = APP.modelsByTypeByName[APP.mode];
     const dictGetTypeParameter = {
-        BJT: (model: i_ltspiceModel) => model.type,
-        JFET: (model: i_ltspiceModel) => model.type,
-        D: (model: i_ltspiceModel) => model.params.type?.v.value.toString(),
-        MOSFET: (model: i_ltspiceModel) => model.mosChannel,
+        BJT: (model: LtspiceModel) => model.type,
+        JFET: (model: LtspiceModel) => model.type,
+        D: (model: LtspiceModel) => model.params.type?.v.value.toString(),
+        MOSFET: (model: LtspiceModel) => model.mosChannel,
     }
     const getTypeParam = dictGetTypeParameter[APP.mode];
-    for (const modelName in currModels) {
-        let model = currModels[modelName];
-        let r = tbl.insertRow();
+    const modelEntries = Object.entries(currModels);
+    const meLen = modelEntries.length;
+    for (let i = 0; i < Math.min(meLen, 2000); ++i) {
+        const [modelName, model] = modelEntries[i];
+        let r = tbody.insertRow();
         r.insertCell().innerText = modelName;
         r.insertCell().innerText = model.src.pack;
         r.insertCell().innerText = getTypeParam(model);
+
+        for (const x of DEFAULT_PARAMETERS[APP.mode]) {
+            r.insertCell().innerText = model.params[x]?.v.toString();
+        }
+
         r.insertCell().innerText = model.src.line;
     }
 

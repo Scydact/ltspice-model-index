@@ -39,3 +39,7 @@ h1 {
 .hidden {
     display: none;
 }
+
+table tr:nth-child(even) {
+    background-color: rgba(128, 128, 128, 15%);
+}

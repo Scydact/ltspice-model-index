@@ -37,39 +37,69 @@ export function toLtspiceNumber(n, uInsteadOfMu = false) {
         return parseFloat((n / Math.pow(10, (exp * 3))).toPrecision(15)) + suffix[exp + 5];
     }
 }
-export const LTSPICE_NUM_REGEX = /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμupf])?(\S+)?/i;
 export function parseLtspiceNumber(str) {
-    const m = str.match(LTSPICE_NUM_REGEX);
-    if (!m)
+    const a = new LtspiceNumber(str);
+    if (a.value === undefined)
         return null;
-    const raw = m[0];
-    const base = parseFloat(m[1] + (m[2] || ''));
-    const mults = {
-        k: 1e3,
-        meg: 1e6,
-        g: 1e9,
-        t: 1e12,
-        m: 1e-3,
-        u: 1e-6,
-        μ: 1e-6,
-        n: 1e-9,
-        p: 1e-12,
-        f: 1e-15
-    };
-    const engexp = (m[3]) ? mults[m[3].toLowerCase()] : 1;
-    // toPrecision(15) fixes floating point error (on eg: 2.74m)
-    const value = parseFloat((base * engexp).toPrecision(15));
-    return {
-        value,
-        raw,
-        base,
-        engexp,
-        engexpraw: m[3],
-        suffix: m[4] || null,
-        toString: function () { return toLtspiceNumber(this.value); },
-        valueOf: function () { return this.value; }
-    };
+    else
+        return a;
 }
+export const LTSPICE_NUM_REGEX = /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμupf])?(\S+)?/i;
+export class LtspiceNumber {
+    constructor(str) {
+        this.engexp = 1;
+        this.engexpraw = undefined;
+        this.suffix = null;
+        if (str instanceof LtspiceNumber) {
+            this.value = str.value;
+            this.raw = str.raw;
+            this.base = str.base;
+            this.engexp = str.engexp;
+            this.engexpraw = str.engexpraw;
+            this.suffix = str.suffix;
+            return;
+        }
+        if (typeof (str) === 'number') {
+            this.value = str;
+            this.raw = str.toString();
+            this.base = str;
+            return;
+        }
+        const m = str.match(LTSPICE_NUM_REGEX);
+        if (!m)
+            return null;
+        const raw = m[0];
+        const base = parseFloat(m[1] + (m[2] || ''));
+        const engexp = (m[3]) ? LtspiceNumber.mults[m[3].toLowerCase()] : 1;
+        // toPrecision(15) fixes floating point error (on eg: 2.74m)
+        const value = parseFloat((base * engexp).toPrecision(15));
+        this.value = value;
+        this.raw = raw;
+        this.base = base;
+        this.engexp = engexp;
+        this.engexpraw = m[3];
+        this.suffix = m[4] || null;
+        return;
+    }
+    toString(uInsteadOfMu = false) {
+        return toLtspiceNumber(this.value, uInsteadOfMu);
+    }
+    valueOf() {
+        return this.value;
+    }
+}
+LtspiceNumber.mults = {
+    k: 1e3,
+    meg: 1e6,
+    g: 1e9,
+    t: 1e12,
+    m: 1e-3,
+    u: 1e-6,
+    μ: 1e-6,
+    n: 1e-9,
+    p: 1e-12,
+    f: 1e-15
+};
 export function createRadio(node, groupName = '', labelName = '', onchange = null, initialState = false) {
     let objId = labelName.toLowerCase().split(' ').join('_');
     let x = document.createElement('input');
@@ -92,5 +122,18 @@ export function createElement(parentNode, tag = 'div', innerHTML = null, classes
         x.innerHTML = innerHTML;
     classes.forEach((clss) => x.classList.add(clss));
     return x;
+}
+export function caseUnsensitiveProperty(obj, prop) {
+    const keys = Object.keys(obj);
+    const idx = keys.map(x => x.toLowerCase()).indexOf(prop.toLowerCase());
+    if (idx !== -1) {
+        let orgKey = keys[idx];
+        return obj[orgKey];
+    }
+    return undefined;
+}
+export function runMethodIfExist(obj, exist, fn) {
+    if (obj[exist] && typeof (obj[exist][fn]) === 'function')
+        obj[exist] = obj[exist][fn]();
 }
 //# sourceMappingURL=Utils.js.map

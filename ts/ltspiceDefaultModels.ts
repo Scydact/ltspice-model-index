@@ -1,7 +1,9 @@
-type i_defaultParamDefinition = {
+import { parseLtspiceNumber } from "./Utils.js";
+
+export type i_defaultParamDefinition = {
     [key: string]: i_paramDefinition
 }
-type i_paramDefinition = {
+export type i_paramDefinition = {
     description: string,
     units: string,
     default?: string,
@@ -260,7 +262,6 @@ const NPN: i_defaultParamDefinition = {
     Quasimod: {
         description: "Quasi-saturation flag for temperature dependence",
         units: "-",
-        default: "(not set)"
     },
     Rco: {
         description: "Epitaxial region resistance",
@@ -1225,10 +1226,10 @@ export const DEFAULT_PARAMETERS = {
         'Ise',
     ],
     D: [
-        'Bv',
+        'BV',
         'Iave',
         'Vpk',
-        'tt',
+        'Tt',
         'Eg',
         'Cjo',
     ],
@@ -1238,4 +1239,13 @@ export const DEFAULT_PARAMETERS = {
         'Lambda',
         'Is',
     ],
+}
+
+export function tryParseDefaultParam(x: i_paramDefinition) {
+    const a = x.default;
+    if (a === undefined) return undefined;
+
+    if (a === 'Infin.') return parseLtspiceNumber(Infinity);
+    if (isNaN(parseFloat(a))) return a; // text cases (parameter is another parameter like Rb)
+    return parseLtspiceNumber(a); // Just a regular number
 }

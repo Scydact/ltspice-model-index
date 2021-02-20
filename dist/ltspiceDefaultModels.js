@@ -1,3 +1,4 @@
+import { parseLtspiceNumber } from "./Utils.js";
 function extractTableData(table) {
     const rows = [...table.querySelectorAll('tr')];
     const headers = [...rows[0].querySelectorAll('td')].map(x => x.innerText.toLowerCase());
@@ -201,7 +202,6 @@ const NPN = Object.assign(Object.assign({}, STD_PARAMS), { Is: {
     }, Quasimod: {
         description: "Quasi-saturation flag for temperature dependence",
         units: "-",
-        default: "(not set)"
     }, Rco: {
         description: "Epitaxial region resistance",
         units: "Ω",
@@ -985,10 +985,10 @@ export const DEFAULT_PARAMETERS = {
         'Ise',
     ],
     D: [
-        'Bv',
+        'BV',
         'Iave',
         'Vpk',
-        'tt',
+        'Tt',
         'Eg',
         'Cjo',
     ],
@@ -999,4 +999,14 @@ export const DEFAULT_PARAMETERS = {
         'Is',
     ],
 };
+export function tryParseDefaultParam(x) {
+    const a = x.default;
+    if (a === undefined)
+        return undefined;
+    if (a === 'Infin.')
+        return parseLtspiceNumber(Infinity);
+    if (isNaN(parseFloat(a)))
+        return a; // text cases (parameter is another parameter like Rb)
+    return parseLtspiceNumber(a); // Just a regular number
+}
 //# sourceMappingURL=ltspiceDefaultModels.js.map
