@@ -60,49 +60,95 @@ setWindow({
 class ProgressBar {
     constructor() {
         this.hidden = true;
-        this.node = document.createElement('div');
-        this.node.classList.add('progress', 'hidden');
+        let container = document.createElement('div');
+        container.classList.add('progress-container', 'hidden');
+        let text = document.createElement('div');
+        text.classList.add('progress-text');
+        container.appendChild(text);
+        let slider = document.createElement('div');
+        slider.classList.add('progress-slider');
+        container.appendChild(slider);
+        let sliderLine = document.createElement('div');
+        sliderLine.classList.add('progress-line');
+        slider.appendChild(sliderLine);
+        let sliderInc = document.createElement('div');
+        sliderInc.classList.add('progress-subline', 'inc');
+        slider.appendChild(sliderInc);
+        let sliderDec = document.createElement('div');
+        sliderDec.classList.add('progress-subline', 'dec');
+        slider.appendChild(sliderDec);
+        this.nodes = {
+            container,
+            text,
+            slider,
+            sliderLine,
+            sliderInc,
+            sliderDec,
+        };
     }
+    /**
+     * Sets the progress bar visibility.
+     *
+     * If no parameter is given, will toggle visibility.
+     */
     setVisibility(val) {
         if (val === undefined)
             return this.setVisibility(this.hidden);
         this.hidden = !val;
-        this.node.classList.toggle('hidden', this.hidden);
+        this.nodes.container.classList.toggle('hidden', this.hidden);
         return this;
     }
+    /** Returns the visibility value of the progress bar. */
     getVisibility() {
         return !this.hidden;
     }
+    /**
+     * Sets the progress bar's progress.
+     *
+     * If negative, will show indeterminate animation.
+     */
     setProgress(n) {
-        const n1 = (100 * n).toPrecision(15);
-        const t = [
-            'linear-gradient(to right, ',
-            `var(--progress-bar-fill) ${n1}%, `,
-            `var(--progress-bar-background) ${n1}%)`,
-        ].join('');
-        this.node.style.backgroundImage = t;
+        const no = this.nodes;
+        if (n < 0) {
+            no.slider.classList.add('indeterminate');
+            // no.sliderDec.style.left = '';
+            // no.sliderDec.style.width = '';
+            // no.sliderInc.style.left = '';
+            // no.sliderInc.style.width = '';
+        }
+        else {
+            const n1 = Math.min(100 * n, 100).toPrecision(15);
+            no.slider.classList.remove('indeterminate');
+            no.sliderInc.style.width = n1 + '%';
+            console.log(n1);
+        }
         return this;
     }
+    /** Returns the progress. */
     getProgress() {
         return this.progress;
     }
+    /** Sets the message to this string. */
     setText(str) {
-        this.node.innerText = str;
+        this.nodes.text.innerText = str;
         return this;
     }
+    /** Returns the text inside. */
     getText() {
-        return this.node.innerText;
+        return this.nodes.text.innerText;
     }
+    /** Clears text and sets progress to 0% */
     clear() {
         this.setText('');
         this.setProgress(0);
         return this;
     }
+    /** Forces redraw (in case of some random glitch?) */
     redraw() {
         if (!this.hidden) {
-            this.node.style.display = 'none';
-            this.node.offsetHeight; // no need to store this anywhere, the reference is enough
-            this.node.style.display = '';
+            this.nodes.container.style.display = 'none';
+            this.nodes.container.offsetHeight; // no need to store this anywhere, the reference is enough
+            this.nodes.container.style.display = '';
         }
         return this;
     }
@@ -147,8 +193,15 @@ function init(mainNode) {
         const $mainNode = $(mainNode).empty();
         // Append progress bar
         {
+            let tid = 'mainProgressBarContainer';
+            var x = document.getElementById(tid);
+            if (x)
+                document.body.removeChild(x);
             APP.progressBar = new ProgressBar();
-            mainNode.appendChild(APP.progressBar.node);
+            let d = document.createElement('div');
+            d.id = tid;
+            d.appendChild(APP.progressBar.nodes.container);
+            document.body.appendChild(d);
         }
         // Create mode selection thing 
         {
@@ -173,7 +226,7 @@ function init(mainNode) {
             mainNode.appendChild(mainTableContainer);
             // Add updatePagination on scroll
             window.onscroll = function () {
-                if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
+                if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 1.5 * window.innerHeight) {
                     paginateTable();
                 }
             };
@@ -181,8 +234,8 @@ function init(mainNode) {
         // Load models from data/models and initialize table.
         {
             APP.progressBar
-                .clear()
-                .setText('Loading models from packs...')
+                .setProgress(-1)
+                .setText('Downloading models from packs...')
                 .setVisibility(true);
             const modelDb = yield getModelDb();
             APP.progressBar

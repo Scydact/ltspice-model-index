@@ -186,4 +186,55 @@ export function fromEntries(entries) {
     }
     return obj;
 }
+/**
+ * Runs multiple checks through an object, only returns true if all match.
+ * @param obj Object to filter.
+ * @param filters Filters to check the object against.
+ */
+export function filterAll(obj, filters) {
+    for (let f of filters) {
+        if (!f(obj))
+            return false;
+    }
+    return true;
+}
+/**
+ * Similar to running s1(a)-s1(b) || s2(a)-s2(b) || ... || sn(a)-sn(b).
+ * @param obj1 First object to compare.
+ * @param obj2 Second object to compare.
+ * @param sorters Comparator functions to use.
+ */
+export function sortAll(obj1, obj2, sorters) {
+    for (let s of sorters) {
+        var o = s(obj1, obj2);
+        if (o)
+            return o;
+    }
+    return 0;
+}
+/**
+ * Returns a sorter that transforms.
+ * @param transformFn Function that maps elements to sort before sorting.
+ */
+export function transformFnToSorterFn(transformFn, reverse = false) {
+    if (reverse) {
+        return function (a, b) {
+            return genericSort(transformFn(b), transformFn(a));
+        };
+    }
+    else {
+        return function (a, b) {
+            return genericSort(transformFn(a), transformFn(b));
+        };
+    }
+}
+/** Sorts using 'a > b' and 'a < b' instead of 'a - b'. */
+export function genericSort(a, b) {
+    if (a < b)
+        return -1;
+    else if (a > b)
+        return 1;
+    else
+        return 0;
+}
 //# sourceMappingURL=Utils.js.map

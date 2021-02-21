@@ -205,3 +205,53 @@ export function fromEntries<V>(entries: [string, V][]) {
     }
     return obj;
 }
+
+/**
+ * Runs multiple checks through an object, only returns true if all match.
+ * @param obj Object to filter.
+ * @param filters Filters to check the object against.
+ */
+export function filterAll<T>(obj: T, filters: ((T) => boolean)[]) {
+    for (let f of filters) {
+        if (!f(obj)) return false;
+    }
+    return true;
+}
+
+/**
+ * Similar to running s1(a)-s1(b) || s2(a)-s2(b) || ... || sn(a)-sn(b).
+ * @param obj1 First object to compare.
+ * @param obj2 Second object to compare.
+ * @param sorters Comparator functions to use.
+ */
+export function sortAll<T>(obj1: T, obj2: T, sorters: ((a: T, b: T) => number)[]) {
+    for (let s of sorters) {
+        var o = s(obj1, obj2);
+        if (o) return o;
+    }
+    return 0;
+}
+
+/**
+ * Returns a sorter that transforms.
+ * @param transformFn Function that maps elements to sort before sorting.
+ */
+export function transformFnToSorterFn<T, U>(transformFn: (o: T) => U, reverse = false) {
+    if (reverse) {
+        return function (a: T, b: T) {
+            return genericSort(transformFn(b), transformFn(a));
+        }
+    }
+    else {
+        return function (a: T, b: T) {
+            return genericSort(transformFn(a), transformFn(b));
+        }
+    }
+}
+
+/** Sorts using 'a > b' and 'a < b' instead of 'a - b'. */
+export function genericSort<T>(a: T, b: T) {
+    if (a < b) return -1;
+    else if (a > b) return 1;
+    else return 0;
+}

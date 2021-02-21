@@ -310,21 +310,21 @@ export function getModelsDict(modelList) {
     return o;
 }
 export function getParameterAnalitics(modelList) {
-    const o1 = {};
+    const allModelParams = {};
     for (const model of modelList) {
         const entries = Object.entries(model.params);
         for (const e of entries) {
             const [k, v] = e;
-            if (o1[k] === undefined) {
-                o1[k] = [v];
+            if (allModelParams[k] === undefined) {
+                allModelParams[k] = [v];
             }
             else {
-                o1[k].push(v);
+                allModelParams[k].push(v);
             }
         }
     }
-    const o2 = {};
-    for (const key in o1) {
+    const allParamStats = {};
+    for (const paramKey in allModelParams) {
         const x = {
             min: Infinity,
             max: -Infinity,
@@ -333,7 +333,10 @@ export function getParameterAnalitics(modelList) {
             count: 0,
             strSet: new Set(),
         };
-        const nums = o1[key].filter(x => x.type === 'number').map(x => x.v.value);
+        // Get number parameters
+        const nums = allModelParams[paramKey]
+            .filter(x => x.type === 'number')
+            .map(x => x.v.value);
         for (const n of nums) {
             if (x.min > n)
                 x.min = n;
@@ -347,13 +350,16 @@ export function getParameterAnalitics(modelList) {
             x.std += (n - x.avg) * (n - x.avg);
         }
         x.std = Math.sqrt(x.std / x.count);
-        const etc = o1[key].filter(x => x.type !== 'number').map(x => x.v.value);
+        // Get all non-number parameters
+        const etc = allModelParams[paramKey]
+            .filter(x => x.type !== 'number')
+            .map(x => x.v.value);
         for (const s of etc) {
             x.strSet.add(s);
             ++x.count;
         }
-        o2[key] = x;
+        allParamStats[paramKey] = x;
     }
-    return o2;
+    return allParamStats;
 }
 //# sourceMappingURL=ltspiceModelLogic.js.map

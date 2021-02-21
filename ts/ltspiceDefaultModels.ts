@@ -1258,4 +1258,4 @@ export function tryParseDefaultParam(x: i_paramDefinition) {
 export const DEFAULT_MODEL_PARAM_KEYS = objectMap(DEFAULT_MODELS, x => Object.keys(x));
 
 /** Contains valid parameters for each MODEL type, in lowercase. */
-export const DEFAULT_MODEL_PARAM_KEYS_LOWERCASE = objectMap(DEFAULT_MODEL_PARAM_KEYS, x => x.map(y => y.toLowerCase())
+export const DEFAULT_MODEL_PARAM_KEYS_LOWERCASE = objectMap(DEFAULT_MODEL_PARAM_KEYS, x => x.map(y => y.toLowerCase()));

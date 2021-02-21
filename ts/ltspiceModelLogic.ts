@@ -439,29 +439,43 @@ export function getModelsDict(modelList: LtspiceModel[]) {
 }
 
 export function getParameterAnalitics(modelList: LtspiceModel[]) {
-    const o1 = {} as { [key: string]: ParamValue[] };
+    const allModelParams = {} as { [key: string]: ParamValue[] };
 
     for (const model of modelList) {
         const entries = Object.entries(model.params);
 
         for (const e of entries) {
             const [k, v] = e;
-            if (o1[k] === undefined) { o1[k] = [v]; }
-            else { o1[k].push(v); }
+            if (allModelParams[k] === undefined) { allModelParams[k] = [v]; }
+            else { allModelParams[k].push(v); }
         }
     }
 
-    const o2 = {};
-    for (const key in o1) {
+    const allParamStats = {} as {
+        [key: string]: {
+            min: number,
+            max: number,
+            avg: number,
+            std: number,
+            count: number,
+            strSet: Set<string>
+        }
+    };
+    
+    for (const paramKey in allModelParams) {
         const x = {
             min: Infinity,
             max: -Infinity,
             avg: 0,
             std: 0,
             count: 0,
-            strSet: new Set(),
+            strSet: new Set<string>(),
         }
-        const nums = o1[key].filter(x => x.type === 'number').map(x => x.v.value) as number[];
+
+        // Get number parameters
+        const nums = allModelParams[paramKey]
+            .filter(x => x.type === 'number')
+            .map(x => x.v.value) as number[];
 
         for (const n of nums) {
             if (x.min > n) x.min = n;
@@ -476,16 +490,19 @@ export function getParameterAnalitics(modelList: LtspiceModel[]) {
         }
         x.std = Math.sqrt(x.std / x.count);
 
-        const etc = o1[key].filter(x => x.type !== 'number').map(x => x.v.value);
+        // Get all non-number parameters
+        const etc = allModelParams[paramKey]
+            .filter(x => x.type !== 'number')
+            .map(x => x.v.value) as string[];
+
         for (const s of etc) {
             x.strSet.add(s);
             ++x.count;
         }
 
-        o2[key] = x;
+        allParamStats[paramKey] = x;
     }
 
-    return o2;
+    return allParamStats;
 }
-
 
