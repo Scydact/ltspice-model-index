@@ -1,4 +1,4 @@
-import { parseLtspiceNumber } from "./Utils.js";
+import { objectMap, parseLtspiceNumber } from "./Utils.js";
 
 export type i_defaultParamDefinition = {
     [key: string]: i_paramDefinition
@@ -1253,3 +1253,9 @@ export function tryParseDefaultParam(x: i_paramDefinition) {
     if (isNaN(parseFloat(a))) return a; // text cases (parameter is another parameter like Rb)
     return parseLtspiceNumber(a); // Just a regular number
 }
+
+/** Contains valid parameters for each MODEL type. */
+export const DEFAULT_MODEL_PARAM_KEYS = objectMap(DEFAULT_MODELS, x => Object.keys(x));
+
+/** Contains valid parameters for each MODEL type, in lowercase. */
+export const DEFAULT_MODEL_PARAM_KEYS_LOWERCASE = objectMap(DEFAULT_MODEL_PARAM_KEYS, x => x.map(y => y.toLowerCase())

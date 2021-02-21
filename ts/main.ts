@@ -118,37 +118,10 @@ class ProgressBar {
 
 }
 
-window.addEventListener('load', async function () {
+window.addEventListener('load', function () {
     document.getElementById('file-input')
         .addEventListener('change', readSingleFile, false);
     init(document.getElementById('main'));
-
-    APP.progressBar
-        .clear()
-        .setText('Loading models from packs...')
-        .setVisibility(true);
-
-    const modelDb = await getModelDb();
-
-    APP.progressBar
-        .setProgress(0.33)
-        .setText('Parsing models...');
-
-    const updateFn = async (a, al, b, bl, c, cl, libStr, fileStr) => {
-        const p = (a + (b + (c / cl)) / bl) / al;
-        const ps = (100 * p).toFixed(2);
-        const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`
-        APP.progressBar.setProgress(p).setText(s);
-        await sleep();
-    };
-
-    await sleep();
-    DB_PACKS = await parseModelDb(modelDb, updateFn);
-    await sleep();
-    await rebuildPacks();
-    await sleep();
-    populateTable();
-
 });
 
 async function rebuildPacks() {
@@ -193,7 +166,7 @@ async function rebuildPacks() {
 setWindow({ parseLtspiceNumber });
 
 
-function init(mainNode) {
+async function init(mainNode) {
     const $mainNode = $(mainNode).empty();
 
     // Append progress bar
@@ -228,11 +201,41 @@ function init(mainNode) {
         mainNode.appendChild(mainTableContainer);
 
         // Add updatePagination on scroll
-        window.onscroll = function() {
+        window.onscroll = function () {
             if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
                 paginateTable();
             }
         };
+    }
+
+
+    // Load models from data/models and initialize table.
+    {
+        APP.progressBar
+        .clear()
+        .setText('Loading models from packs...')
+        .setVisibility(true);
+
+        const modelDb = await getModelDb();
+
+        APP.progressBar
+            .setProgress(0.33)
+            .setText('Parsing models...');
+
+        const updateFn = async (a, al, b, bl, c, cl, libStr, fileStr) => {
+            const p = (a + (b + (c / cl)) / bl) / al;
+            const ps = (100 * p).toFixed(2);
+            const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`
+            APP.progressBar.setProgress(p).setText(s);
+            await sleep();
+        };
+
+        await sleep();
+        DB_PACKS = await parseModelDb(modelDb, updateFn);
+        await sleep();
+        await rebuildPacks();
+        await sleep();
+        populateTable();
     }
 }
 

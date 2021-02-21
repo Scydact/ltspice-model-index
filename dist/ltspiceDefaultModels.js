@@ -1,4 +1,4 @@
-import { parseLtspiceNumber } from "./Utils.js";
+import { objectMap, parseLtspiceNumber } from "./Utils.js";
 function extractTableData(table) {
     const rows = [...table.querySelectorAll('tr')];
     const headers = [...rows[0].querySelectorAll('td')].map(x => x.innerText.toLowerCase());
@@ -1013,4 +1013,8 @@ export function tryParseDefaultParam(x) {
         return a; // text cases (parameter is another parameter like Rb)
     return parseLtspiceNumber(a); // Just a regular number
 }
+/** Contains valid parameters for each MODEL type. */
+export const DEFAULT_MODEL_PARAM_KEYS = objectMap(DEFAULT_MODELS, x => Object.keys(x));
+/** Contains valid parameters for each MODEL type, in lowercase. */
+export const DEFAULT_MODEL_PARAM_KEYS_LOWERCASE = objectMap(DEFAULT_MODEL_PARAM_KEYS, x => x.map(y => y.toLowerCase()));
 //# sourceMappingURL=ltspiceDefaultModels.js.map

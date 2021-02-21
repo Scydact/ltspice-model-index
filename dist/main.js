@@ -108,32 +108,9 @@ class ProgressBar {
     }
 }
 window.addEventListener('load', function () {
-    return __awaiter(this, void 0, void 0, function* () {
-        document.getElementById('file-input')
-            .addEventListener('change', readSingleFile, false);
-        init(document.getElementById('main'));
-        APP.progressBar
-            .clear()
-            .setText('Loading models from packs...')
-            .setVisibility(true);
-        const modelDb = yield getModelDb();
-        APP.progressBar
-            .setProgress(0.33)
-            .setText('Parsing models...');
-        const updateFn = (a, al, b, bl, c, cl, libStr, fileStr) => __awaiter(this, void 0, void 0, function* () {
-            const p = (a + (b + (c / cl)) / bl) / al;
-            const ps = (100 * p).toFixed(2);
-            const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`;
-            APP.progressBar.setProgress(p).setText(s);
-            yield sleep();
-        });
-        yield sleep();
-        DB_PACKS = yield parseModelDb(modelDb, updateFn);
-        yield sleep();
-        yield rebuildPacks();
-        yield sleep();
-        populateTable();
-    });
+    document.getElementById('file-input')
+        .addEventListener('change', readSingleFile, false);
+    init(document.getElementById('main'));
 });
 function rebuildPacks() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -166,40 +143,66 @@ function rebuildPacks() {
 }
 setWindow({ parseLtspiceNumber });
 function init(mainNode) {
-    const $mainNode = $(mainNode).empty();
-    // Append progress bar
-    {
-        APP.progressBar = new ProgressBar();
-        mainNode.appendChild(APP.progressBar.node);
-    }
-    // Create mode selection thing 
-    {
-        let container = createElement(mainNode, 'div', null, ['select-mode-container']);
-        createElement(container, 'h4', 'Tipos de modelos:');
-        let d = createElement(container, 'form', null, ['select-mode']);
-        for (const type in MODEL_TYPES) {
-            let fn = () => {
-                APP.mode = type;
-                // todo: update_tables()?
-                populateTable();
-            };
-            let selected = APP.mode === type;
-            createRadio(d, 'userSelect', type, fn, selected);
+    return __awaiter(this, void 0, void 0, function* () {
+        const $mainNode = $(mainNode).empty();
+        // Append progress bar
+        {
+            APP.progressBar = new ProgressBar();
+            mainNode.appendChild(APP.progressBar.node);
         }
-        mainNode.appendChild(container);
-    }
-    // Main table init
-    {
-        let { mainTableContainer } = APP.nodes;
-        mainTableContainer.id = 'mainTableContainer';
-        mainNode.appendChild(mainTableContainer);
-        // Add updatePagination on scroll
-        window.onscroll = function () {
-            if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
-                paginateTable();
+        // Create mode selection thing 
+        {
+            let container = createElement(mainNode, 'div', null, ['select-mode-container']);
+            createElement(container, 'h4', 'Tipos de modelos:');
+            let d = createElement(container, 'form', null, ['select-mode']);
+            for (const type in MODEL_TYPES) {
+                let fn = () => {
+                    APP.mode = type;
+                    // todo: update_tables()?
+                    populateTable();
+                };
+                let selected = APP.mode === type;
+                createRadio(d, 'userSelect', type, fn, selected);
             }
-        };
-    }
+            mainNode.appendChild(container);
+        }
+        // Main table init
+        {
+            let { mainTableContainer } = APP.nodes;
+            mainTableContainer.id = 'mainTableContainer';
+            mainNode.appendChild(mainTableContainer);
+            // Add updatePagination on scroll
+            window.onscroll = function () {
+                if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight - 700) {
+                    paginateTable();
+                }
+            };
+        }
+        // Load models from data/models and initialize table.
+        {
+            APP.progressBar
+                .clear()
+                .setText('Loading models from packs...')
+                .setVisibility(true);
+            const modelDb = yield getModelDb();
+            APP.progressBar
+                .setProgress(0.33)
+                .setText('Parsing models...');
+            const updateFn = (a, al, b, bl, c, cl, libStr, fileStr) => __awaiter(this, void 0, void 0, function* () {
+                const p = (a + (b + (c / cl)) / bl) / al;
+                const ps = (100 * p).toFixed(2);
+                const s = `(${ps}%) Parsing file \n${libStr}/${fileStr}`;
+                APP.progressBar.setProgress(p).setText(s);
+                yield sleep();
+            });
+            yield sleep();
+            DB_PACKS = yield parseModelDb(modelDb, updateFn);
+            yield sleep();
+            yield rebuildPacks();
+            yield sleep();
+            populateTable();
+        }
+    });
 }
 function populateTable() {
     const tbl = document.createElement('table');

@@ -4,7 +4,7 @@
 //     + N=1 Nr=2 Xti=3 Alpha=311.7u Vk=243.6 Cgd=1.6p M=.3622 
 //     + Pb=1 Fc=.5 Cgs=2.414p Kf=9.882E-18 Af=1 mfg=Vishay)
 import { boolean, choice, many, regex, safeword, sepBy, sequenceOf, str, whitespace } from "./StrParse.js";
-import { setWindow } from "./Utils.js";
+import { fromEntries, setWindow } from "./Utils.js";
 function removeDoubleSpaces(str) {
     if (!str)
         return str;
@@ -53,12 +53,12 @@ const parameterParserPre = sepBy(whitespace)(choice([
         ltspiceSafeword,
     ]).map(x => [x[0], x[2]]),
     safeword.map(x => [x, null]),
-])).map(x => Object.fromEntries(x));
+])).map(x => fromEntries(x));
 // const parameterParser = boolean(choice([
 //     between(str('('), str(')'))(parameterParserPre),
 //     sequenceOf([whitespace, parameterParserPre]).map(x => x[1]),
 // ])).map(x => x || {});
-const parameterParser = boolean(sequenceOf([whitespaceOrBracket, parameterParserPre]).map(x => x[1])).map(x => x || {});
+const parameterParser = boolean(sequenceOf([whitespaceOrBracket, parameterParserPre])).map(x => x[1] || {});
 const modelAkoParser = sequenceOf([
     str('ako:', false),
     notWhitespace,
@@ -87,7 +87,11 @@ export const parser = sequenceOf([
     notWhitespace,
     whitespace,
     choice([modelAkoParser, modelNormalParser]),
-]).map(x => (Object.assign({ modName: x[2] }, x[4])));
+]).map(x => {
+    var y = x[4];
+    y.modName = x[2];
+    return y;
+});
 function prep() {
     let a = document.getElementById('file-content');
     let b = preprocessString(a.innerText);

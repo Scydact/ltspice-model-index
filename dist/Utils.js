@@ -47,7 +47,8 @@ export function parseLtspiceNumber(str) {
     else
         return a;
 }
-export const LTSPICE_NUM_REGEX = /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμupf])?(\S+)?/i;
+// 166 steps /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμupf])?(\S+)?/i
+export const LTSPICE_NUM_REGEX = /([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:e(?:[+-])?[0-9]+)?)(meg|[kGTmμupf])?(\S+)?/i; // 153 steps
 export class LtspiceNumber {
     constructor(str) {
         this.engexp = 1;
@@ -72,16 +73,16 @@ export class LtspiceNumber {
         if (!m)
             return null;
         const raw = m[0];
-        const base = parseFloat(m[1] + (m[2] || ''));
-        const engexp = (m[3]) ? LtspiceNumber.mults[m[3].toLowerCase()] : 1;
+        const base = parseFloat(m[1]);
+        const engexp = (m[2]) ? LtspiceNumber.mults[m[2].toLowerCase()] : 1;
         // toPrecision(15) fixes floating point error (on eg: 2.74m)
         const value = parseFloat((base * engexp).toPrecision(15));
         this.value = value;
         this.raw = raw;
         this.base = base;
         this.engexp = engexp;
-        this.engexpraw = m[3];
-        this.suffix = m[4] || null;
+        this.engexpraw = m[2];
+        this.suffix = m[3] || null;
         return;
     }
     toString(uInsteadOfMu = false) {
@@ -158,5 +159,31 @@ export function debounce(func, wait, immediate) {
 ;
 export function sleep(time = 0) {
     return new Promise((r) => setTimeout(r, time));
+}
+/**
+ * Maps each value as {[key]: value => newValue}
+ *
+ * About 4x times faster than Object.fromEntries(Object.entries().map())
+ * @param object
+ * @param mapFn
+ */
+export function objectMap(object, mapFn) {
+    var result = Object.assign({}, object);
+    for (var key in object) {
+        result[key] = mapFn(object[key], key);
+    }
+    return result;
+}
+/**
+ * Faster version of Object.fromEntries(), taken from lodash.
+ *
+ * About 5x faster.
+ */
+export function fromEntries(entries) {
+    for (var t = -1, r = null == entries ? 0 : entries.length, obj = {}; ++t < r;) {
+        var pair = entries[t];
+        obj[pair[0]] = pair[1];
+    }
+    return obj;
 }
 //# sourceMappingURL=Utils.js.map

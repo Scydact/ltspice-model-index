@@ -5,7 +5,7 @@
 //     + Pb=1 Fc=.5 Cgs=2.414p Kf=9.882E-18 Af=1 mfg=Vishay)
 
 import { between, boolean, choice, debugParser, digits, letters, many, regex, safeword, sepBy, sequenceOf, str, whitespace } from "./StrParse.js";
-import { setWindow } from "./Utils.js";
+import { fromEntries, setWindow } from "./Utils.js";
 
 function removeDoubleSpaces(str) {
     if (!str) return str;
@@ -47,7 +47,7 @@ export function preprocessString(str) {
 
 const notWhitespace = regex(/^\S+/);
 const ltspiceSafeword = regex(/^[a-zA-Z0-9+_&\-\.\/]+/)
-const whitespaceOrBracket = many(choice([whitespace,str('('),str(')')]))
+const whitespaceOrBracket = many(choice([whitespace, str('('), str(')')]))
 // Syntax: .model <modname> <type>[(<parameter list>)]
 const parameterParserPre = sepBy(whitespace)(
     choice([
@@ -58,7 +58,7 @@ const parameterParserPre = sepBy(whitespace)(
         ]).map(x => [x[0], x[2]]),
         safeword.map(x => [x, null]),
     ])
-).map(x => Object.fromEntries(x));
+).map(x => fromEntries(x));
 
 // const parameterParser = boolean(choice([
 //     between(str('('), str(')'))(parameterParserPre),
@@ -66,8 +66,8 @@ const parameterParserPre = sepBy(whitespace)(
 // ])).map(x => x || {});
 
 const parameterParser = boolean(
-    sequenceOf([whitespaceOrBracket, parameterParserPre]).map(x => x[1]),
-).map(x => x || {});
+    sequenceOf([whitespaceOrBracket, parameterParserPre]),
+).map(x => x[1] || {});
 
 const modelAkoParser = sequenceOf([
     str('ako:', false),
@@ -100,10 +100,11 @@ export const parser = sequenceOf([
     notWhitespace,
     whitespace,
     choice([modelAkoParser, modelNormalParser]),
-]).map(x => ({
-    modName: x[2],
-    ...x[4]
-}));
+]).map(x => {
+    var y = x[4];
+    y.modName = x[2];
+    return y;
+});
 
 
 function prep() {

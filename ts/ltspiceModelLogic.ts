@@ -1,6 +1,6 @@
-import { DEFAULT_MODELS, i_defaultParamDefinition, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, i_defaultParamDefinition, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
-import { arraysEqual, caseUnsensitiveProperty, LtspiceNumber, parseLtspiceNumber, runMethodIfExist } from "./Utils.js";
+import { arraysEqual, caseUnsensitiveProperty, fromEntries, LtspiceNumber, objectMap, parseLtspiceNumber, runMethodIfExist } from "./Utils.js";
 
 /** Specifies a group of files with extensions 'bjt, dio, jft, mos' */
 export type i_modelDb = {
@@ -98,7 +98,7 @@ export async function parseModelDb(
             const fdKey = fileDataKeys[fdei];
             const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
             const linesLen = lines.length;
-            const progressDivs = Math.min(300, Math.max(1, Math.round(linesLen / 10)))
+            const progressDivs = Math.min(500, Math.max(1, Math.round(linesLen / 6)))
             for (let i = 0; i < linesLen; ++i) {
 
                 // Progress thing... 
@@ -219,36 +219,31 @@ export class LtspiceModel {
             lineIndex: 0,
             line: '', // TODO: Change to parseModelToLine
             err: null,
-            params: obj.params || Object.fromEntries(
-                Object.entries(params)
-                    .map(x => [x[0], x[1].toString()])
-            )
+            params: obj.params || objectMap(params, x => x.toString()),
         } as i_modelSrc;
 
     }
 
     /** Maps and corrects a dict  */
     static parseParams(obj: { [key: string]: any }, modelType: string = ''): { [key: string]: ParamValue } {
-        const newParamEntries = [];
-        const THIS_MODEL_PARAM_KEYS = Object.keys(DEFAULT_MODELS[modelType] || {});
-        const TMPK_LC = THIS_MODEL_PARAM_KEYS.map(x => x.toLowerCase());
+        const newParamEntries = [],
+            TMPK = DEFAULT_MODEL_PARAM_KEYS[modelType] || [],
+            TMPK_LC = DEFAULT_MODEL_PARAM_KEYS_LOWERCASE[modelType] || [];
+        var keyIdx, newEntry;
 
-        for (const entry of Object.entries(obj)) {
-            const [key, val] = entry;
-            let newEntry = [key, val];
-
-            // Parse value (if a number)
-            newEntry[1] = new ParamValue(val);
+        for (var entry of Object.entries(obj)) {
+            var [key, val] = entry;
+            newEntry = [key, new ParamValue(val)];
 
             // key proper capitalization
-            const keyIdx = TMPK_LC.indexOf(key.toLowerCase());
+            keyIdx = TMPK_LC.indexOf(key.toLowerCase());
             if (keyIdx !== -1)
-                newEntry[0] = THIS_MODEL_PARAM_KEYS[keyIdx];
+                newEntry[0] = TMPK[keyIdx];
 
             newParamEntries.push(newEntry);
         }
 
-        return Object.fromEntries(newParamEntries);
+        return fromEntries(newParamEntries);
     }
 
     /**
@@ -324,14 +319,13 @@ export class ParamValue {
 
     constructor(str: any) {
         // find type of param
-        const stdObj = {
-            value: str,
-            toString: function () { return this.value; },
-            valueOf: function () { return this.value; }
-        };
         if (str === null || str === undefined) {
             this.type = 'null';
-            this.v = stdObj;
+            this.v = {
+                value: str,
+                toString: function () { return this.value; },
+                valueOf: function () { return this.value; }
+            };;
         } else if (typeof (str) === 'number') {
             this.type = 'number';
             this.v = parseLtspiceNumber(str.toString());
@@ -344,7 +338,11 @@ export class ParamValue {
                 this.v = x
             } else {
                 this.type = 'string';
-                this.v = stdObj;
+                this.v = {
+                    value: str,
+                    toString: function () { return this.value; },
+                    valueOf: function () { return this.value; }
+                };;
             }
         } else if (str instanceof LtspiceNumber) {
             this.type = 'number';
@@ -370,7 +368,6 @@ export function joinDb(dbArray: i_modelPack[]) {
     const o = [] as LtspiceModel[];
     for (const dB of dbArray) {
         for (const model of dB.data) {
-            const p = model.p;
 
             // create model
             const src = {
@@ -383,7 +380,7 @@ export function joinDb(dbArray: i_modelPack[]) {
             } as i_modelSrc;
 
             // fix some stuff on the model
-            const m = new LtspiceModel({ ...p }, src);
+            const m = new LtspiceModel(model.p, src);
 
             // push the model
             o.push(m);
