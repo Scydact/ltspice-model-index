@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { createElement, createRadio, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
+import { createElement, createRadio, filterAll, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
 import * as p from "./StrParse.js";
 import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
 import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
@@ -28,6 +28,7 @@ const APP = {
     nodes: {
         mainTableContainer: document.createElement('div'),
         mainTable: null,
+        filterContainer: null,
     },
     /** Single progress bar added to the page. */
     progressBar: null,
@@ -49,6 +50,10 @@ const APP = {
         lastIdx: 0,
         end: false,
     },
+    /** LtfilterManager */
+    filterManager: null,
+    /** Current table settings */
+    currentTable: [],
 };
 setWindow({
     p,
@@ -56,6 +61,7 @@ setWindow({
     parseModelDb,
     joinDb,
     APP,
+    parseLtspiceNumber,
 });
 class ProgressBar {
     constructor() {
@@ -111,16 +117,11 @@ class ProgressBar {
         const no = this.nodes;
         if (n < 0) {
             no.slider.classList.add('indeterminate');
-            // no.sliderDec.style.left = '';
-            // no.sliderDec.style.width = '';
-            // no.sliderInc.style.left = '';
-            // no.sliderInc.style.width = '';
         }
         else {
             const n1 = Math.min(100 * n, 100).toPrecision(15);
             no.slider.classList.remove('indeterminate');
             no.sliderInc.style.width = n1 + '%';
-            console.log(n1);
         }
         return this;
     }
@@ -158,6 +159,8 @@ window.addEventListener('load', function () {
         .addEventListener('change', readSingleFile, false);
     init(document.getElementById('main'));
 });
+//#endregion
+//#region Main section
 function rebuildPacks() {
     return __awaiter(this, void 0, void 0, function* () {
         const t = '[Rebuilding model database]: ';
@@ -187,7 +190,6 @@ function rebuildPacks() {
         APP.progressBar.clear().setVisibility(false);
     });
 }
-setWindow({ parseLtspiceNumber });
 function init(mainNode) {
     return __awaiter(this, void 0, void 0, function* () {
         const $mainNode = $(mainNode).empty();
@@ -206,17 +208,26 @@ function init(mainNode) {
         // Create mode selection thing 
         {
             let container = createElement(mainNode, 'div', null, ['select-mode-container']);
-            createElement(container, 'h4', 'Tipos de modelos:');
+            createElement(container, 'h4', 'Model types:');
             let d = createElement(container, 'form', null, ['select-mode']);
             for (const type in MODEL_TYPES) {
                 let fn = () => {
                     APP.mode = type;
                     // todo: update_tables()?
+                    console.log(APP.mode);
                     populateTable();
                 };
                 let selected = APP.mode === type;
                 createRadio(d, 'userSelect', type, fn, selected);
             }
+            mainNode.appendChild(container);
+        }
+        // Create filter selection thing
+        {
+            let container = createElement(mainNode, 'div', null, ['filter-mode-container']);
+            createElement(container, 'h4', 'Filters:');
+            APP.filterManager = new LtFilterManager();
+            container.appendChild(APP.filterManager.node);
             mainNode.appendChild(container);
         }
         // Main table init
@@ -258,6 +269,9 @@ function init(mainNode) {
     });
 }
 function populateTable() {
+    console.log('a');
+    const thisModeModels = Object.values(APP.modelsByTypeByName[APP.mode]);
+    APP.currentTable = APP.filterManager.filter(thisModeModels);
     const tbl = document.createElement('table');
     const thead = tbl.createTHead();
     const rhead = thead.insertRow();
@@ -268,6 +282,12 @@ function populateTable() {
         rhead.insertCell().innerText = x;
     }
     rhead.insertCell().innerText = 'Model definition';
+    // Footer (load more models!)
+    const tfoot = tbl.createTFoot();
+    let footcell = tfoot.insertRow().insertCell();
+    footcell.colSpan = rhead.childElementCount;
+    footcell.innerText = ' - ';
+    footcell.addEventListener('click', paginateTable);
     APP.pagination.end = false;
     APP.pagination.lastIdx = 0;
     APP.nodes.mainTable = tbl;
@@ -283,6 +303,7 @@ function paginateTable() {
         return;
     const tbl = APP.nodes.mainTable;
     const tbody = tbl.createTBody();
+    /** Contains all the models of the same type (BJT, D, JFET, MOSFET) */
     const currModels = APP.modelsByTypeByName[APP.mode];
     const dictGetTypeParameter = {
         BJT: (model) => model.type,
@@ -291,7 +312,7 @@ function paginateTable() {
         MOSFET: (model) => model.mosChannel,
     }; // TODO: Move inside model
     const getTypeParam = dictGetTypeParameter[APP.mode];
-    const modelEntries = Object.entries(currModels);
+    const modelEntries = APP.currentTable;
     const meLen = modelEntries.length;
     let startIdx = APP.pagination.lastIdx;
     let endIdx = Math.min(meLen, APP.pagination.limit + startIdx);
@@ -299,7 +320,7 @@ function paginateTable() {
         APP.pagination.end = true;
     APP.pagination.lastIdx = endIdx + 1;
     for (let i = startIdx; i < endIdx; ++i) {
-        const [modelName, model] = modelEntries[i];
+        const model = modelEntries[i], modelName = model.modName;
         let r = tbody.insertRow();
         r.insertCell().innerText = modelName;
         r.insertCell().innerText = model.src.pack;
@@ -323,7 +344,292 @@ function paginateTable() {
         }
         r.insertCell().innerText = model.src.line;
     }
+    const foot = tbl.tFoot.firstElementChild.firstElementChild;
+    if (APP.pagination.end) {
+        foot.innerText = `All models (${endIdx}) listed.`;
+    }
+    else {
+        foot.innerText = `Loaded ${endIdx} of ${meLen}. ` +
+            `\n[Click to load +${Math.min(APP.pagination.limit, meLen - endIdx)}]`;
+    }
 }
+class LtFilterManager {
+    constructor() {
+        this.node = document.createElement('div');
+        this.filterListNode = document.createElement('div');
+        this.filters = [];
+        this.inputNodes = {
+            addBtn: document.createElement('button'),
+            updateBtn: document.createElement('button'),
+        };
+        let upperContainer = createElement(this.node, 'div');
+        upperContainer.appendChild(this.inputNodes.addBtn);
+        upperContainer.appendChild(this.inputNodes.updateBtn);
+        $(this.node)
+            .addClass('filter-list-container')
+            .append(upperContainer)
+            .append(this.filterListNode);
+        $(this.inputNodes.addBtn)
+            .text('+')
+            .on('click', (evt) => {
+            let newFilter = new LtFilter('string', (x) => x.modName, 'Model Name');
+            this.addFilter(newFilter);
+        });
+        $(this.inputNodes.updateBtn)
+            .text('Update')
+            .on('click', (evt) => {
+            populateTable();
+        });
+        $(this.filterListNode).addClass('filter-list');
+    }
+    addFilter(filter) {
+        this.filters.push(filter);
+        this.filterListNode.appendChild(filter.node);
+    }
+    filter(models) {
+        if (this.filters.length === 0)
+            return models;
+        let filters = this.filters.map(x => x.getFilter());
+        let fn = (model) => filterAll(model, filters);
+        return models.filter(fn);
+    }
+}
+class LtFilter {
+    constructor(filterModes, modelPropGetter, description = '') {
+        /** Parsed inputs. */
+        this.inputs = {
+            selector: null,
+            val: null,
+            valB: null,
+        };
+        this.evtSelectorUpdate = () => {
+            this.inputs.selector = this.internalNodes.selector.value;
+        };
+        this.evtValUpdate = () => {
+            var _a;
+            let key = this.inputs.selector, validator = (_a = this.filterFnDesc[key].val) === null || _a === void 0 ? void 0 : _a.validator;
+            if (validator) {
+                let x = validator(this.internalNodes.val.value);
+                if (x) {
+                    this.internalNodes.val.value = x.str;
+                    this.inputs.val = x.val;
+                }
+            }
+            else {
+                this.internalNodes.val.value = '';
+                this.inputs.val = null;
+            }
+        };
+        this.evtValBUpdate = () => {
+            var _a;
+            let key = this.inputs.selector, validator = (_a = this.filterFnDesc[key].valB) === null || _a === void 0 ? void 0 : _a.validator;
+            if (validator) {
+                let x = validator(this.internalNodes.valB.value);
+                if (x) {
+                    this.internalNodes.valB.value = x.str;
+                    this.inputs.valB = x.val;
+                }
+            }
+            else {
+                this.internalNodes.valB.value = '';
+                this.inputs.valB = null;
+            }
+        };
+        this.modelPropGetter = modelPropGetter;
+        this.node = document.createElement('div');
+        this.node.classList.add('filter-container');
+        this.internalNodes = {
+            description: document.createElement('span'),
+            selector: document.createElement('select'),
+            val: document.createElement('input'),
+            valB: document.createElement('input'),
+            valDesc: document.createElement('label'),
+            valBDesc: document.createElement('label'),
+        };
+        $(this.node)
+            .append(this.internalNodes.description)
+            .append(this.internalNodes.selector)
+            .append(this.internalNodes.valDesc)
+            .append(this.internalNodes.val)
+            .append(this.internalNodes.valBDesc)
+            .append(this.internalNodes.valB);
+        // Add event listeners and other parameters.
+        this.internalNodes.description.innerText = description;
+        if (filterModes === 'number') {
+            this.filterFnDesc = Object.assign({}, DEFAULT_FILTER_FN_NUMBER);
+        }
+        else if (filterModes === 'string') {
+            this.filterFnDesc = Object.assign({}, DEFAULT_FILTER_FN_STRING);
+        }
+        else {
+            this.filterFnDesc = Object.assign({}, filterModes);
+        }
+        this.internalNodes.selector
+            .addEventListener('change', this.evtSelectorUpdate);
+        this.internalNodes.val
+            .addEventListener('change', this.evtValUpdate);
+        this.internalNodes.valB
+            .addEventListener('change', this.evtValBUpdate);
+        this.reloadSelectors();
+    }
+    /** Returns the filter function */
+    getFilter() {
+        let x = this.inputs.selector, y = this.filterFnDesc[x];
+        if (y)
+            return (model) => y.fn(this)(this.modelPropGetter(model));
+    }
+    selectorChange() {
+        let newFilterKey = this.internalNodes.selector.value, newFilter = this.filterFnDesc[newFilterKey];
+        if (newFilter) {
+            let { display, val, valB } = newFilter;
+            this.inputs.selector = newFilterKey;
+        }
+    }
+    /** Reloads selectors from this.filterFunctions */
+    reloadSelectors() {
+        let selector = this.internalNodes.selector;
+        $(selector).empty();
+        for (let key in this.filterFnDesc) {
+            let val = this.filterFnDesc[key].display;
+            let opt = document.createElement('option');
+            opt.value = key;
+            opt.innerText = val;
+            selector.appendChild(opt);
+        }
+        selector.value = Object.keys(this.filterFnDesc)[0];
+        this.evtSelectorUpdate();
+    }
+    // Aux functions
+    static toleranceValidator(s) {
+        s = s.trim();
+        if (s.slice(-1) === '%') {
+            let x = parseFloat(s.slice(0, -1));
+            if (isNaN(x))
+                return null;
+            return {
+                str: x.toString() + '%',
+                val: { type: 'rel', val: x }
+            };
+        }
+        else {
+            let x = parseLtspiceNumber(s);
+            if (!x)
+                return null;
+            return {
+                str: s,
+                val: { type: 'abs', val: x }
+            };
+        }
+    }
+    static ltspiceNumberValidator(s) {
+        let x = parseLtspiceNumber(s);
+        if (!x)
+            return null;
+        return {
+            str: s,
+            val: x,
+        };
+    }
+    static stringCaseInsensitiveValidator(s) {
+        return {
+            str: s.trim(),
+            val: s.trim().toLowerCase(),
+        };
+    }
+}
+const DEFAULT_FILTER_FN_NUMBER = {
+    '=': {
+        fn: (filter) => {
+            let { val, valB } = filter.inputs, valMatch = val.valueOf(), valTol = (valB.type === 'abs') ? valB.val.valueOf() : valB.val;
+            if (valB.type === 'abs') {
+                if (valTol === 0) {
+                    return (x) => x === valMatch;
+                }
+                else {
+                    return (x) => Math.abs(x - valMatch) < valTol;
+                }
+            }
+            else {
+                return (x) => Math.abs(x - valMatch) < valMatch * valTol;
+            }
+        },
+        display: '=',
+        val: {
+            description: 'Equal to',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+        valB: {
+            description: 'Tolerance',
+            validator: LtFilter.toleranceValidator,
+        },
+    },
+    '!=': {
+        fn: (filter) => {
+            let equalfn = filter.filterFnDesc['='].fn(filter);
+            return (x) => !equalfn(x);
+        },
+        display: '≠',
+        val: {
+            description: 'Not equal to',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+        valB: {
+            description: 'Tolerance',
+            validator: LtFilter.toleranceValidator,
+        },
+    },
+    '>=': {
+        fn: (filter) => {
+            let val = filter.inputs.val.valueOf();
+            return (x) => x >= val;
+        },
+        display: '≥',
+        val: {
+            description: 'Greater than',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+    },
+    '<=': {
+        fn: (filter) => {
+            let val = filter.inputs.val.valueOf();
+            return (x) => x <= val;
+        },
+        display: '≤',
+        val: {
+            description: 'Less than',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+    },
+};
+const DEFAULT_FILTER_FN_STRING = {
+    '=': {
+        fn: (filter) => {
+            let value = filter.inputs.val;
+            return (x) => {
+                return x.toLowerCase().includes(value);
+            };
+        },
+        display: '=',
+        val: {
+            description: 'Matches',
+            validator: LtFilter.stringCaseInsensitiveValidator,
+        },
+    },
+    '!=': {
+        fn: (filter) => {
+            let equalfn = filter.filterFnDesc['='].fn(filter);
+            return (x) => !equalfn(x);
+        },
+        display: '≠',
+        val: {
+            description: 'Does not match',
+            validator: LtFilter.stringCaseInsensitiveValidator,
+        },
+    },
+};
+setWindow({ LtFilter });
+//#endregion
+//#region Unused?
 /** Some file input function??? */
 function readSingleFile(e) {
     var file = e.target.files[0];
@@ -344,4 +650,5 @@ function displayContents(contents) {
         element.textContent = contents.toString();
     }
 }
+//#endregion
 //# sourceMappingURL=main.js.map
