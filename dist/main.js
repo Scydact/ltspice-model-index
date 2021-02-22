@@ -7,10 +7,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { createElement, createRadio, filterAll, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
+import { createElement, createRadio, filterAll, objectMap, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
 import * as p from "./StrParse.js";
-import { DEFAULT_PARAMETERS, MODEL_TYPES } from "./ltspiceDefaultModels.js";
+import { DEFAULT_PARAMETERS, MODEL_TYPES, MODEL_TYPES_PARAMS } from "./ltspiceDefaultModels.js";
 import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
+import { COMMON_FILTERS, COMMON_FILTERS_BY_MODEL, LtFilter } from "./ltspiceModelFilter.js";
 /**
  * List of packs loaded from ./data/models.json.
  * Gets merged with any custom packs made/loaded from the user's PC.
@@ -185,8 +186,7 @@ function rebuildPacks() {
                 .map(y => [y[0], y[1][0]]))
         ]));
         yield progress('Getting parameter statistics.');
-        APP.paramStatsByModelType = Object.fromEntries(Object.entries(APP.modelsByTypeByName)
-            .map(x => [x[0], getParameterAnalitics(Object.values(x[1]))]));
+        APP.paramStatsByModelType = objectMap(APP.modelsByTypeByName, x => getParameterAnalitics(Object.values(x)));
         APP.progressBar.clear().setVisibility(false);
     });
 }
@@ -213,8 +213,8 @@ function init(mainNode) {
             for (const type in MODEL_TYPES) {
                 let fn = () => {
                     APP.mode = type;
-                    // todo: update_tables()?
-                    console.log(APP.mode);
+                    APP.filterManager.filters = [];
+                    APP.filterManager.reloadNodeList();
                     populateTable();
                 };
                 let selected = APP.mode === type;
@@ -269,7 +269,6 @@ function init(mainNode) {
     });
 }
 function populateTable() {
-    console.log('a');
     const thisModeModels = Object.values(APP.modelsByTypeByName[APP.mode]);
     APP.currentTable = APP.filterManager.filter(thisModeModels);
     const tbl = document.createElement('table');
@@ -362,6 +361,28 @@ class LtFilterManager {
             addBtn: document.createElement('button'),
             updateBtn: document.createElement('button'),
         };
+        this.filterEvents = {
+            change: (evt) => {
+                /*
+                TODO: Update on filter change,
+                 - ADD DIODE BY TYPE FILTER!!!
+                 - Try to debounce (100ms?),
+                 - If take too long (50ms?), stop auto update until next reload.
+                 - Set change event to have a "trigger" prop, either 'change' or 'keyup' (source of the original event)
+                 - Add 'priority' to filters, and sort by it on getAvaiableFilters (priority = count?)
+                 - Add 'repeatPriority', which modifies the priority per repeat.
+                 - Add 'repeat', which limits the amount of times a filter can appear.
+                 - Add a way to export custom filters...
+                    (probly a customFilter that has 'param, selector, val1, val2'?)
+                */
+            },
+            move: (evt) => {
+                this.moveFilter(evt.detail.filter, evt.detail.direction);
+            },
+            delete: (evt) => {
+                this.removeFilter(evt.detail.filter);
+            },
+        };
         let upperContainer = createElement(this.node, 'div');
         upperContainer.appendChild(this.inputNodes.addBtn);
         upperContainer.appendChild(this.inputNodes.updateBtn);
@@ -382,9 +403,40 @@ class LtFilterManager {
         });
         $(this.filterListNode).addClass('filter-list');
     }
-    addFilter(filter) {
-        this.filters.push(filter);
-        this.filterListNode.appendChild(filter.node);
+    addFilter(filter, index, addEvents = true) {
+        if (index === undefined)
+            index = this.filters.length;
+        index = Math.min(this.filters.length, Math.max(0, index));
+        //this.filters.push(filter);
+        this.filters = [...this.filters.slice(0, index), filter, ...this.filters.slice(index)];
+        if (this.filterListNode.children[index])
+            this.filterListNode.insertBefore(filter.node, this.filterListNode.children[index]);
+        else
+            this.filterListNode.appendChild(filter.node);
+        if (addEvents) {
+            filter.node.addEventListener('change', this.filterEvents.change);
+            filter.node.addEventListener('move', this.filterEvents.move);
+            filter.node.addEventListener('delete', this.filterEvents.delete);
+        }
+    }
+    moveFilter(filter, direction) {
+        let idx = this.filters.indexOf(filter);
+        if (idx !== -1) {
+            let newIdx = idx + direction;
+            if (newIdx >= 0 && newIdx < this.filters.length) {
+                this.removeFilter(filter, false);
+                this.addFilter(filter, idx + direction, false);
+            }
+        }
+    }
+    removeFilter(filter, removeEvents = true) {
+        this.filters = this.filters.filter(x => x !== filter);
+        this.filterListNode.removeChild(filter.node);
+        if (removeEvents) {
+            filter.node.removeEventListener('change', this.filterEvents.change);
+            filter.node.removeEventListener('move', this.filterEvents.move);
+            filter.node.removeEventListener('delete', this.filterEvents.delete);
+        }
     }
     filter(models) {
         if (this.filters.length === 0)
@@ -393,241 +445,49 @@ class LtFilterManager {
         let fn = (model) => filterAll(model, filters);
         return models.filter(fn);
     }
-}
-class LtFilter {
-    constructor(filterModes, modelPropGetter, description = '') {
-        /** Parsed inputs. */
-        this.inputs = {
-            selector: null,
-            val: null,
-            valB: null,
-        };
-        this.evtSelectorUpdate = () => {
-            this.inputs.selector = this.internalNodes.selector.value;
-        };
-        this.evtValUpdate = () => {
-            var _a;
-            let key = this.inputs.selector, validator = (_a = this.filterFnDesc[key].val) === null || _a === void 0 ? void 0 : _a.validator;
-            if (validator) {
-                let x = validator(this.internalNodes.val.value);
-                if (x) {
-                    this.internalNodes.val.value = x.str;
-                    this.inputs.val = x.val;
-                }
-            }
-            else {
-                this.internalNodes.val.value = '';
-                this.inputs.val = null;
-            }
-        };
-        this.evtValBUpdate = () => {
-            var _a;
-            let key = this.inputs.selector, validator = (_a = this.filterFnDesc[key].valB) === null || _a === void 0 ? void 0 : _a.validator;
-            if (validator) {
-                let x = validator(this.internalNodes.valB.value);
-                if (x) {
-                    this.internalNodes.valB.value = x.str;
-                    this.inputs.valB = x.val;
-                }
-            }
-            else {
-                this.internalNodes.valB.value = '';
-                this.inputs.valB = null;
-            }
-        };
-        this.modelPropGetter = modelPropGetter;
-        this.node = document.createElement('div');
-        this.node.classList.add('filter-container');
-        this.internalNodes = {
-            description: document.createElement('span'),
-            selector: document.createElement('select'),
-            val: document.createElement('input'),
-            valB: document.createElement('input'),
-            valDesc: document.createElement('label'),
-            valBDesc: document.createElement('label'),
-        };
-        $(this.node)
-            .append(this.internalNodes.description)
-            .append(this.internalNodes.selector)
-            .append(this.internalNodes.valDesc)
-            .append(this.internalNodes.val)
-            .append(this.internalNodes.valBDesc)
-            .append(this.internalNodes.valB);
-        // Add event listeners and other parameters.
-        this.internalNodes.description.innerText = description;
-        if (filterModes === 'number') {
-            this.filterFnDesc = Object.assign({}, DEFAULT_FILTER_FN_NUMBER);
-        }
-        else if (filterModes === 'string') {
-            this.filterFnDesc = Object.assign({}, DEFAULT_FILTER_FN_STRING);
-        }
-        else {
-            this.filterFnDesc = Object.assign({}, filterModes);
-        }
-        this.internalNodes.selector
-            .addEventListener('change', this.evtSelectorUpdate);
-        this.internalNodes.val
-            .addEventListener('change', this.evtValUpdate);
-        this.internalNodes.valB
-            .addEventListener('change', this.evtValBUpdate);
-        this.reloadSelectors();
-    }
-    /** Returns the filter function */
-    getFilter() {
-        let x = this.inputs.selector, y = this.filterFnDesc[x];
-        if (y)
-            return (model) => y.fn(this)(this.modelPropGetter(model));
-    }
-    selectorChange() {
-        let newFilterKey = this.internalNodes.selector.value, newFilter = this.filterFnDesc[newFilterKey];
-        if (newFilter) {
-            let { display, val, valB } = newFilter;
-            this.inputs.selector = newFilterKey;
+    /** Redraws filterListNode */
+    reloadNodeList() {
+        $(this.filterListNode).empty();
+        for (let p of this.filters) {
+            this.filterListNode.appendChild(p.node);
         }
     }
-    /** Reloads selectors from this.filterFunctions */
-    reloadSelectors() {
-        let selector = this.internalNodes.selector;
-        $(selector).empty();
-        for (let key in this.filterFnDesc) {
-            let val = this.filterFnDesc[key].display;
-            let opt = document.createElement('option');
-            opt.value = key;
-            opt.innerText = val;
-            selector.appendChild(opt);
+    getAvailableFilters() {
+        const MTYPE = APP.mode;
+        const CURR_MODELS = APP.modelsByTypeByName[MTYPE];
+        const PARAM_STATS = APP.paramStatsByModelType[MTYPE];
+        const DEF_MODEL_PARAMS = MODEL_TYPES_PARAMS[MTYPE];
+        let allModelTypes = COMMON_FILTERS;
+        let specificModelType = COMMON_FILTERS_BY_MODEL[MTYPE] || [];
+        // For each parameter
+        let byParameter = [];
+        for (const PARAM_KEY in PARAM_STATS) {
+            let paramStats = PARAM_STATS[PARAM_KEY];
+            let defParam = DEF_MODEL_PARAMS[PARAM_KEY];
+            let description = (defParam) ? defParam.description : '';
+            let paramDefOut = (paramStats.strSet.size) ? '' : NaN;
+            let filter = new LtFilter((paramStats.strSet.size) ? 'string' : 'number', (model) => {
+                let a = model.getParam(PARAM_KEY, CURR_MODELS);
+                if (a && a.v && a.v && a.v.v && a.v.v.valueOf)
+                    return a.v.v.valueOf();
+                else
+                    return paramDefOut;
+            }, PARAM_KEY + (description !== '') ? '\n' + description : '');
+            byParameter.push({
+                name: PARAM_KEY,
+                description,
+                filter,
+                count: paramStats.count,
+            });
         }
-        selector.value = Object.keys(this.filterFnDesc)[0];
-        this.evtSelectorUpdate();
-    }
-    // Aux functions
-    static toleranceValidator(s) {
-        s = s.trim();
-        if (s.slice(-1) === '%') {
-            let x = parseFloat(s.slice(0, -1));
-            if (isNaN(x))
-                return null;
-            return {
-                str: x.toString() + '%',
-                val: { type: 'rel', val: x }
-            };
-        }
-        else {
-            let x = parseLtspiceNumber(s);
-            if (!x)
-                return null;
-            return {
-                str: s,
-                val: { type: 'abs', val: x }
-            };
-        }
-    }
-    static ltspiceNumberValidator(s) {
-        let x = parseLtspiceNumber(s);
-        if (!x)
-            return null;
-        return {
-            str: s,
-            val: x,
-        };
-    }
-    static stringCaseInsensitiveValidator(s) {
-        return {
-            str: s.trim(),
-            val: s.trim().toLowerCase(),
-        };
+        byParameter.sort((a, b) => (b.count - a.count));
+        return [
+            ...specificModelType,
+            ...allModelTypes,
+            ...byParameter,
+        ];
     }
 }
-const DEFAULT_FILTER_FN_NUMBER = {
-    '=': {
-        fn: (filter) => {
-            let { val, valB } = filter.inputs, valMatch = val.valueOf(), valTol = (valB.type === 'abs') ? valB.val.valueOf() : valB.val;
-            if (valB.type === 'abs') {
-                if (valTol === 0) {
-                    return (x) => x === valMatch;
-                }
-                else {
-                    return (x) => Math.abs(x - valMatch) < valTol;
-                }
-            }
-            else {
-                return (x) => Math.abs(x - valMatch) < valMatch * valTol;
-            }
-        },
-        display: '=',
-        val: {
-            description: 'Equal to',
-            validator: LtFilter.ltspiceNumberValidator,
-        },
-        valB: {
-            description: 'Tolerance',
-            validator: LtFilter.toleranceValidator,
-        },
-    },
-    '!=': {
-        fn: (filter) => {
-            let equalfn = filter.filterFnDesc['='].fn(filter);
-            return (x) => !equalfn(x);
-        },
-        display: '≠',
-        val: {
-            description: 'Not equal to',
-            validator: LtFilter.ltspiceNumberValidator,
-        },
-        valB: {
-            description: 'Tolerance',
-            validator: LtFilter.toleranceValidator,
-        },
-    },
-    '>=': {
-        fn: (filter) => {
-            let val = filter.inputs.val.valueOf();
-            return (x) => x >= val;
-        },
-        display: '≥',
-        val: {
-            description: 'Greater than',
-            validator: LtFilter.ltspiceNumberValidator,
-        },
-    },
-    '<=': {
-        fn: (filter) => {
-            let val = filter.inputs.val.valueOf();
-            return (x) => x <= val;
-        },
-        display: '≤',
-        val: {
-            description: 'Less than',
-            validator: LtFilter.ltspiceNumberValidator,
-        },
-    },
-};
-const DEFAULT_FILTER_FN_STRING = {
-    '=': {
-        fn: (filter) => {
-            let value = filter.inputs.val;
-            return (x) => {
-                return x.toLowerCase().includes(value);
-            };
-        },
-        display: '=',
-        val: {
-            description: 'Matches',
-            validator: LtFilter.stringCaseInsensitiveValidator,
-        },
-    },
-    '!=': {
-        fn: (filter) => {
-            let equalfn = filter.filterFnDesc['='].fn(filter);
-            return (x) => !equalfn(x);
-        },
-        display: '≠',
-        val: {
-            description: 'Does not match',
-            validator: LtFilter.stringCaseInsensitiveValidator,
-        },
-    },
-};
-setWindow({ LtFilter });
 //#endregion
 //#region Unused?
 /** Some file input function??? */

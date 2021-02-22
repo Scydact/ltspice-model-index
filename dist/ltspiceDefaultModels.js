@@ -960,6 +960,13 @@ export const MODEL_TYPES = {
     JFET: ['NJF', 'PJF'],
     MOSFET: ['VDMOS', 'NMOS', 'PMOS'],
 };
+export const MODEL_TYPES_PARAMS = objectMap(MODEL_TYPES, x => {
+    let o = {};
+    for (let key of x.reverse()) {
+        o = Object.assign(Object.assign({}, o), DEFAULT_MODELS[key]);
+    }
+    return o;
+});
 export const DEFAULT_PARAMETERS = {
     MOSFET: [
         'Vto',

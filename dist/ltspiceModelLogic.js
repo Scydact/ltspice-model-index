@@ -53,7 +53,7 @@ export function parseModelDb(modelDbList, progressCallback = (pack_i, pack_l, fi
                 const fdKey = fileDataKeys[fdei];
                 const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
                 const linesLen = lines.length;
-                const progressDivs = Math.min(500, Math.max(1, Math.round(linesLen / 6)));
+                const progressDivs = Math.min(500, Math.max(1, Math.round(linesLen / 3.5)));
                 for (let i = 0; i < linesLen; ++i) {
                     // Progress thing... 
                     // makes actual process slower, 
@@ -92,7 +92,7 @@ export class LtspiceModel {
         this.type = o.type.toUpperCase();
         this.isAko = o.isAko;
         this.akoBaseModel = o.akoBaseModel;
-        const params = LtspiceModel.parseParams(o.params);
+        const params = LtspiceModel.parseParams(o.params, this.type);
         this.params = params;
         const paramKeys = Object.keys(params).map(x => x.toLowerCase());
         if (obj.type === 'VDMOS') {

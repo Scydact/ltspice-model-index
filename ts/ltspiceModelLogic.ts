@@ -98,7 +98,7 @@ export async function parseModelDb(
             const fdKey = fileDataKeys[fdei];
             const lines = d.preprocessString(pack.fileData[fdKey]).split('\n');
             const linesLen = lines.length;
-            const progressDivs = Math.min(500, Math.max(1, Math.round(linesLen / 6)))
+            const progressDivs = Math.min(500, Math.max(1, Math.round(linesLen / 3.5)))
             for (let i = 0; i < linesLen; ++i) {
 
                 // Progress thing... 
@@ -197,7 +197,7 @@ export class LtspiceModel {
         this.isAko = o.isAko;
         this.akoBaseModel = o.akoBaseModel;
 
-        const params = LtspiceModel.parseParams(o.params);
+        const params = LtspiceModel.parseParams(o.params, this.type);
 
         this.params = params;
 
@@ -461,7 +461,7 @@ export function getParameterAnalitics(modelList: LtspiceModel[]) {
             strSet: Set<string>
         }
     };
-    
+
     for (const paramKey in allModelParams) {
         const x = {
             min: Infinity,
