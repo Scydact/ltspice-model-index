@@ -46,8 +46,8 @@ export function parseLtspiceNumber(str: any) {
     if (a.value === undefined) return null;
     else return a;
 }
-// 166 steps /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμupf])?(\S+)?/i
-export const LTSPICE_NUM_REGEX = /([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:e(?:[+-])?[0-9]+)?)(meg|[kGTmμupf])?(\S+)?/i; // 153 steps
+// 166 steps /((?:[+-])?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+))(e(?:[+-])?[0-9]+)?(meg|[kGTmμunpf])?(\S+)?/i
+export const LTSPICE_NUM_REGEX = /([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:e(?:[+-])?[0-9]+)?)(meg|[kGTmμunpf])?(\S+)?/i; // 153 steps
 export class LtspiceNumber {
     value: number;
     raw: string;

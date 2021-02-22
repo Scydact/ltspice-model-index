@@ -465,12 +465,15 @@ class LtFilterManager {
              - Add a way to export custom filters... 
                 (probly a customFilter that has 'param, selector, val1, val2'?)
             */
+            populateTable();
         },
         move: (evt: CustomEvent) => {
             this.moveFilter(evt.detail.filter, evt.detail.direction);
+            populateTable();
         },
         delete: (evt: CustomEvent) => {
             this.removeFilter(evt.detail.filter);
+            populateTable();
         },
     }
 
@@ -599,7 +602,6 @@ class LtFilterManager {
             let paramType = (paramStats.strSet.size) ? 'string' : 'number';
             let descStr = PARAM_KEY.bold();
             if (description !== '') descStr += description;
-            console.log(descStr)
 
             let filter = new LtFilter(
                 paramType as any,
@@ -609,8 +611,8 @@ class LtFilterManager {
                     else return paramDefOut;
                 },
                 descStr,
-                (paramType === 'string') ? '' : (paramStats.avg).toPrecision(3),
-                (paramType === 'string') ? '' : (paramStats.std).toPrecision(3),
+                (paramType === 'string') ? '' : parseLtspiceNumber(paramStats.avg.toPrecision(4)).toString(),
+                (paramType === 'string') ? '' : parseLtspiceNumber(paramStats.std.toPrecision(4)).toString(),
             )
 
             byParameter.push({
@@ -665,8 +667,8 @@ class FilterDropdownListManager {
                 let b = document.createElement('div');
                 $(b)
                     .addClass('filter-add-element')
-                    .append($(`<span class='filter-title'>${x.name}</span>`))
-                    .append($(`<span class='filter-description'>${x.description}</span>`))
+                    .append($(`<span class='filter-ae-title'>${x.name}</span>`))
+                    .append($(`<span class='filter-ae-description'>${x.description}</span>`))
                     .on('click', () => {
                         this.fm.addFilter(x.filter);
                         this.node.classList.add('hidden');

@@ -153,7 +153,12 @@ tr:nth-child(even) {
 }
 #mainTableContainer {
     margin-top: 2em;
+    min-width: 80%;
 }
+#mainTableContainer table{
+    width: 100%;
+}
+
 #mainTableContainer thead td {
     position: sticky;
     top: 0;
@@ -187,6 +192,18 @@ tr:nth-child(even) {
 
 .btn:hover {
     background-color: rgba(0, 0, 0, 0.2);
+}
+
+input {
+    background-color: white;
+    border: 1px solid rgba(0,0,0,50%);
+    border-radius: var(--br);
+    padding: .2em .5em;
+}
+
+input.invalid {
+    background: rgb(255, 211, 203);
+    color: rgb(173, 0, 0);
 }
 
 /* Select mode */
@@ -235,8 +252,8 @@ tr:nth-child(even) {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    max-width: 15em;
-    max-height: 60%;
+    max-width: 30em;
+    max-height: 70%;
 }
 
 .filter-list-add > div {
@@ -251,7 +268,7 @@ tr:nth-child(even) {
     padding: 0.3em;
     cursor: pointer;
 }
-.filter-title {
+.filter-ae-title {
     font-weight: bold;
 }
 

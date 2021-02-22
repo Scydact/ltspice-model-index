@@ -183,17 +183,27 @@ export class LtFilter {
         // avoids having duplicate events.
         IN.selector
             .addEventListener('change',
-                () => this.node.dispatchEvent(this.createEventChange()), false);
+                () => this.node.dispatchEvent(this.createEventChange('change')), false);
 
         IN.val
             .addEventListener('change', this.evtValUpdate);
         IN.val
-            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange()), false);
+            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange('change')), false);
+        IN.val
+            .addEventListener('input', this.evtValUpdate);
+        IN.val
+            .addEventListener('input', () => this.node.dispatchEvent(this.createEventChange('input')), false);
+
+
 
         IN.valB
             .addEventListener('change', this.evtValBUpdate);
         IN.valB
-            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange()), false);
+            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange('change')), false);
+        IN.valB
+            .addEventListener('input', this.evtValBUpdate);
+        IN.valB
+            .addEventListener('input', () => this.node.dispatchEvent(this.createEventChange('input')), false);
 
         IN.btnUp
             .addEventListener('click', () => this.node.dispatchEvent(this.createEventMove(-1)), false);
@@ -206,10 +216,11 @@ export class LtFilter {
     }
 
     // Events
-    createEventChange = () => {
+    createEventChange = (mode: string = '') => {
         return new CustomEvent('change', {
             detail: {
                 filter: this,
+                mode,
                 ...this.inputs
             }
         });
@@ -273,8 +284,11 @@ export class LtFilter {
         if (validator) {
             let x = validator(this.internalNodes.val.value);
             if (x) {
+                this.internalNodes.val.classList.remove('invalid');
                 this.internalNodes.val.value = x.str;
                 this.inputs.val = x.val;
+            } else {
+                this.internalNodes.val.classList.add('invalid');
             }
         } else {
             //this.internalNodes.val.value = '';
@@ -288,8 +302,11 @@ export class LtFilter {
         if (validator) {
             let x = validator(this.internalNodes.valB.value);
             if (x) {
+                this.internalNodes.valB.classList.remove('invalid');
                 this.internalNodes.valB.value = x.str;
                 this.inputs.valB = x.val;
+            } else {
+                this.internalNodes.valB.classList.add('invalid');
             }
         } else {
             //this.internalNodes.valB.value = '';
@@ -305,7 +322,7 @@ export class LtFilter {
             if (isNaN(x)) return null;
             return {
                 str: x.toString() + '%',
-                val: { type: 'rel', val: x }
+                val: { type: 'rel', val: x / 100 }
             };
         } else {
             let x = parseLtspiceNumber(s);
@@ -361,7 +378,7 @@ const DEFAULT_SELECTOR_FN_NUMBER = {
             validator: LtFilter.ltspiceNumberValidator,
         },
         valB: {
-            description: 'Tolerance',
+            description: 'Tolerance (±|±%)',
             validator: LtFilter.toleranceValidator,
         },
     },
@@ -376,7 +393,7 @@ const DEFAULT_SELECTOR_FN_NUMBER = {
             validator: LtFilter.ltspiceNumberValidator,
         },
         valB: {
-            description: 'Tolerance',
+            description: 'Tolerance (±|±%)',
             validator: LtFilter.toleranceValidator,
         },
     },
