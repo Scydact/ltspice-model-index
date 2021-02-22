@@ -1,6 +1,6 @@
 import { parseLtspiceNumber } from "./Utils.js";
 export class LtFilter {
-    constructor(filterModes, modelPropGetter, description = '') {
+    constructor(filterModes, modelPropGetter, description = '', val1 = '', val2 = '') {
         /** Parsed inputs. */
         this.inputs = {
             selector: null,
@@ -28,20 +28,24 @@ export class LtFilter {
             this.inputs.selector = this.internalNodes.selector.value;
             // set values visibility & text;
             const csm = this.filterSelectorModes[this.inputs.selector];
-            const { valContainer, valBContainer, val, valB } = this.internalNodes;
+            const { valContainer, valBContainer, val, valB, valDesc, valBDesc } = this.internalNodes;
             // I wish i used React on this project... but is too late to switch.
             if (csm.val) {
+                valDesc.innerText = csm.val.description || '';
                 valContainer.classList.remove('hidden');
             }
             else {
                 valContainer.classList.add('hidden');
             }
             if (csm.valB) {
+                valBDesc.innerText = csm.valB.description || '';
                 valBContainer.classList.remove('hidden');
             }
             else {
                 valBContainer.classList.add('hidden');
             }
+            this.evtValUpdate();
+            this.evtValBUpdate();
         };
         this.evtValUpdate = () => {
             var _a;
@@ -54,7 +58,7 @@ export class LtFilter {
                 }
             }
             else {
-                this.internalNodes.val.value = '';
+                //this.internalNodes.val.value = '';
                 this.inputs.val = null;
             }
         };
@@ -69,7 +73,7 @@ export class LtFilter {
                 }
             }
             else {
-                this.internalNodes.valB.value = '';
+                //this.internalNodes.valB.value = '';
                 this.inputs.valB = null;
             }
         };
@@ -91,6 +95,8 @@ export class LtFilter {
             btnDelete: document.createElement('button'),
         };
         let IN = this.internalNodes;
+        IN.val.value = val1;
+        IN.valB.value = val2;
         $(this.node)
             .append($(IN.description).addClass('filter-description'))
             .append($(IN.selector).addClass('filter-selector'))
@@ -103,12 +109,12 @@ export class LtFilter {
             .append(IN.valB)
             .addClass('filter-input-container'))
             .append($(IN.btnContainer)
-            .append($(IN.btnUp).addClass('btn').text('^'))
-            .append($(IN.btnDown).addClass('btn').text('v'))
-            .append($(IN.btnDelete).addClass('btn').text('X'))
+            .append($(IN.btnDelete).addClass('btn').text('×'))
+            .append($(IN.btnUp).addClass('btn').text('▴'))
+            .append($(IN.btnDown).addClass('btn').text('▾'))
             .addClass('btn-container'));
         // Add event listeners and other parameters.
-        IN.description.innerText = description;
+        IN.description.innerHTML = description.split('\n').join('<br>');
         if (filterModes === 'number') {
             this.filterSelectorModes = Object.assign({}, DEFAULT_SELECTOR_FN_NUMBER);
         }
@@ -119,11 +125,11 @@ export class LtFilter {
             this.filterSelectorModes = Object.assign({}, filterModes);
         }
         IN.selector
-            .addEventListener('change', this.evtSelectorUpdate, false);
+            .addEventListener('change', this.evtSelectorUpdate);
         // Calling the custom event this way, instead of inside each evt-x-Update()
         // avoids having duplicate events.
         IN.selector
-            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange()));
+            .addEventListener('change', () => this.node.dispatchEvent(this.createEventChange()), false);
         IN.val
             .addEventListener('change', this.evtValUpdate);
         IN.val
@@ -145,6 +151,8 @@ export class LtFilter {
         let x = this.inputs.selector, y = this.filterSelectorModes[x];
         if (y)
             return (model) => y.fn(this)(this.modelPropGetter(model));
+        else
+            return () => true;
     }
     selectorChange() {
         let newFilterKey = this.internalNodes.selector.value, newFilter = this.filterSelectorModes[newFilterKey];
@@ -208,7 +216,8 @@ export class LtFilter {
 const DEFAULT_SELECTOR_FN_NUMBER = {
     '=': {
         fn: (filter) => {
-            let { val, valB } = filter.inputs, valMatch = val.valueOf(), valTol = (valB.type === 'abs') ? valB.val.valueOf() : valB.val;
+            let { val, valB } = filter.inputs;
+            let valMatch = val.valueOf(), valTol = (valB.type === 'abs') ? valB.val.valueOf() : valB.val;
             if (valB.type === 'abs') {
                 if (valTol === 0) {
                     return (x) => x === valMatch;

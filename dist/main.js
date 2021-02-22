@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { createElement, createRadio, filterAll, objectMap, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
+import { createElement, createRadio, filterAll, genericSort, objectMap, parseLtspiceNumber, setWindow, sleep } from "./Utils.js";
 import * as p from "./StrParse.js";
 import { DEFAULT_PARAMETERS, MODEL_TYPES, MODEL_TYPES_PARAMS } from "./ltspiceDefaultModels.js";
 import { getModelDb, getModelsByType, getModelsDict, getParameterAnalitics, joinDb, parseModelDb } from "./ltspiceModelLogic.js";
@@ -214,6 +214,7 @@ function init(mainNode) {
                 let fn = () => {
                     APP.mode = type;
                     APP.filterManager.filters = [];
+                    APP.filterManager.reloadDropdown();
                     APP.filterManager.reloadNodeList();
                     populateTable();
                 };
@@ -264,6 +265,7 @@ function init(mainNode) {
             yield sleep();
             yield rebuildPacks();
             yield sleep();
+            APP.filterManager.reloadDropdown();
             populateTable();
         }
     });
@@ -359,6 +361,7 @@ class LtFilterManager {
         this.filters = [];
         this.inputNodes = {
             addBtn: document.createElement('button'),
+            addBtnDropdownContainer: document.createElement('div'),
             updateBtn: document.createElement('button'),
         };
         this.filterEvents = {
@@ -383,20 +386,34 @@ class LtFilterManager {
                 this.removeFilter(evt.detail.filter);
             },
         };
+        this.addFilterDropdownManager = new FilterDropdownListManager(this);
         let upperContainer = createElement(this.node, 'div');
-        upperContainer.appendChild(this.inputNodes.addBtn);
-        upperContainer.appendChild(this.inputNodes.updateBtn);
+        $(upperContainer)
+            .append(this.inputNodes.addBtnDropdownContainer)
+            .append(this.inputNodes.updateBtn);
         $(this.node)
             .addClass('filter-list-container')
             .append(upperContainer)
             .append(this.filterListNode);
         $(this.inputNodes.addBtn)
+            .addClass('btn')
             .text('+')
             .on('click', (evt) => {
-            let newFilter = new LtFilter('string', (x) => x.modName, 'Model Name');
-            this.addFilter(newFilter);
-        });
+            // let newFilter = new LtFilter('string', (x: LtspiceModel) => x.modName, 'Model Name')
+            // this.addFilter(newFilter);
+            let fdm = this.addFilterDropdownManager;
+            if (fdm.node.classList.contains('hidden')) {
+                fdm.updateFilterDefinition();
+                fdm.node.classList.remove('hidden');
+            }
+            else
+                fdm.node.classList.add('hidden');
+        })
+            .appendTo(this.inputNodes.addBtnDropdownContainer);
+        $(this.addFilterDropdownManager.node)
+            .appendTo(this.inputNodes.addBtnDropdownContainer);
         $(this.inputNodes.updateBtn)
+            .addClass('btn')
             .text('Update')
             .on('click', (evt) => {
             populateTable();
@@ -404,6 +421,10 @@ class LtFilterManager {
         $(this.filterListNode).addClass('filter-list');
     }
     addFilter(filter, index, addEvents = true) {
+        if (!(filter instanceof LtFilter)) {
+            console.log('Object is not a filter!: ', filter);
+            return;
+        }
         if (index === undefined)
             index = this.filters.length;
         index = Math.min(this.filters.length, Math.max(0, index));
@@ -452,6 +473,10 @@ class LtFilterManager {
             this.filterListNode.appendChild(p.node);
         }
     }
+    reloadDropdown() {
+        this.addFilterDropdownManager
+            .updateFilterDefinition(this.getAvailableFilters());
+    }
     getAvailableFilters() {
         const MTYPE = APP.mode;
         const CURR_MODELS = APP.modelsByTypeByName[MTYPE];
@@ -466,13 +491,18 @@ class LtFilterManager {
             let defParam = DEF_MODEL_PARAMS[PARAM_KEY];
             let description = (defParam) ? defParam.description : '';
             let paramDefOut = (paramStats.strSet.size) ? '' : NaN;
-            let filter = new LtFilter((paramStats.strSet.size) ? 'string' : 'number', (model) => {
+            let paramType = (paramStats.strSet.size) ? 'string' : 'number';
+            let descStr = PARAM_KEY.bold();
+            if (description !== '')
+                descStr += description;
+            console.log(descStr);
+            let filter = new LtFilter(paramType, (model) => {
                 let a = model.getParam(PARAM_KEY, CURR_MODELS);
                 if (a && a.v && a.v && a.v.v && a.v.v.valueOf)
                     return a.v.v.valueOf();
                 else
                     return paramDefOut;
-            }, PARAM_KEY + (description !== '') ? '\n' + description : '');
+            }, descStr, (paramType === 'string') ? '' : (paramStats.avg).toPrecision(3), (paramType === 'string') ? '' : (paramStats.std).toPrecision(3));
             byParameter.push({
                 name: PARAM_KEY,
                 description,
@@ -488,7 +518,71 @@ class LtFilterManager {
         ];
     }
 }
-//#endregion
+class FilterDropdownListManager {
+    constructor(fm) {
+        this.node = document.createElement('div');
+        this.txtInput = document.createElement('input');
+        this.txt = '';
+        this.listNode = document.createElement('div');
+        this.avail = [];
+        this.fm = fm;
+        this.txtInput.addEventListener('input', (evt) => {
+            this.txt = evt.target.value;
+            this.updateFilterDefinition();
+        });
+        $(this.node)
+            .addClass(['filter-list-add', 'hidden'])
+            .append(this.txtInput)
+            .append(this.listNode);
+    }
+    updateFilterDefinition(newFilterDefinitions) {
+        // Add and create nodes for each filter definition.
+        if (newFilterDefinitions) {
+            const filterMapper = (x) => {
+                let b = document.createElement('div');
+                $(b)
+                    .addClass('filter-add-element')
+                    .append($(`<span class='filter-title'>${x.name}</span>`))
+                    .append($(`<span class='filter-description'>${x.description}</span>`))
+                    .on('click', () => {
+                    this.fm.addFilter(x.filter);
+                    this.node.classList.add('hidden');
+                });
+                return Object.assign(Object.assign({}, x), { domNode: b, nameLC: x.name.toLowerCase(), descriptionLC: x.description.toLowerCase() });
+            };
+            this.avail = newFilterDefinitions.map(filterMapper);
+        }
+        // Clear node
+        let t = this.txt.toLowerCase();
+        const getMatchIndexN = (x) => {
+            let m1 = x.nameLC.match(t);
+            let c = (x.count === undefined) ? 1e4 : x.count;
+            if (m1)
+                return c + 1 - m1.index / x.nameLC.length;
+            else
+                return 0;
+        };
+        const getMatchIndexD = (x) => {
+            let m1 = x.descriptionLC.match(t);
+            if (m1)
+                return t.length / x.nameLC.length;
+            else
+                return 0;
+        };
+        const a = this.avail
+            .filter(x => {
+            return !this.fm.filters.includes(x.filter) && (x.nameLC.includes(t) ||
+                x.descriptionLC.includes(t));
+        })
+            .sort((a, b) => genericSort(getMatchIndexN(b), getMatchIndexN(a)) ||
+            genericSort(getMatchIndexD(b), getMatchIndexD(a)));
+        while (this.listNode.firstChild) {
+            this.listNode.removeChild(this.listNode.firstChild);
+        }
+        for (let f of a)
+            this.listNode.appendChild(f.domNode);
+    }
+}
 //#region Unused?
 /** Some file input function??? */
 function readSingleFile(e) {
