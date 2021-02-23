@@ -486,7 +486,7 @@ export type i_filterDefinition = {
     count?: number,
 }
 
-export const COMMON_FILTERS: i_filterDefinition[] = [
+export const COMMON_FILTERS = (): i_filterDefinition[] => [
     {
         filter: new LtFilter(
             'string',
@@ -500,7 +500,7 @@ export const COMMON_FILTERS: i_filterDefinition[] = [
 
 export const COMMON_FILTERS_BY_MODEL = {
     BJT: [
-        {
+        () => ({
             name: 'BJT type',
             description: 'NPN or PNP.',
             filter: new LtFilter(
@@ -525,8 +525,8 @@ export const COMMON_FILTERS_BY_MODEL = {
                 (model: LtspiceModel) => model.type,
                 'BJT type'
             )
-        }
-    ] as i_filterDefinition[],
+        }),
+    ] as (() => i_filterDefinition)[],
     D: [
         // {
         //     name: 'Diode type',
@@ -546,9 +546,9 @@ export const COMMON_FILTERS_BY_MODEL = {
         //         'Diode type'
         //     )
         // }
-    ] as i_filterDefinition[],
+    ] as (() => i_filterDefinition)[],
     JFET: [
-        {
+        () => ({
             name: 'Channel Type',
             description: 'JFET channel type (NJF or PJF)',
             filter: new LtFilter(
@@ -573,10 +573,10 @@ export const COMMON_FILTERS_BY_MODEL = {
                 (model: LtspiceModel) => model.type,
                 'Channel type'
             )
-        }
-    ] as i_filterDefinition[],
+        }),
+    ] as (() => i_filterDefinition)[],
     MOSFET: [
-        {
+        () => ({
             name: 'Channel Type',
             description: 'MOSFET channel type (NMOS or PMOS)',
             filter: new LtFilter(
@@ -601,6 +601,6 @@ export const COMMON_FILTERS_BY_MODEL = {
                 (model: LtspiceModel) => model.mosChannel,
                 'Channel type'
             )
-        }
-    ] as i_filterDefinition[],
+        }),
+    ] as (() => i_filterDefinition)[],
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, i_defaultParamDefinition, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, DIODE_TYPES, DIODE_TYPES_LC, i_defaultParamDefinition, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
 import { arraysEqual, caseUnsensitiveProperty, fromEntries, getStringHashCode, LtspiceNumber, numberToHSL, objectMap, parseLtspiceNumber, runMethodIfExist } from "./Utils.js";
 
@@ -252,6 +252,11 @@ export class LtspiceModel {
             if (keyIdx !== -1)
                 newEntry[0] = TMPK[keyIdx];
 
+            if (modelType === 'D' && newEntry[0] === 'type') {
+                let x = DIODE_TYPES[DIODE_TYPES_LC.indexOf(val.toLowerCase())];
+                if (x) newEntry[1] = new ParamValue(x);
+            }
+
             newParamEntries.push(newEntry);
         }
 
@@ -339,7 +344,8 @@ export class LtspiceModel {
         } else if (MODEL_TYPES.MOSFET.includes(this.type)) {
             return this.mosChannel;
         } else if (this.type === 'D') {
-            return this.getParam('type', modelDbByName).v.toString()
+            let t = this.getParam('type', modelDbByName).v?.toString();
+            return (t) ? t : '';
         }
     }
 

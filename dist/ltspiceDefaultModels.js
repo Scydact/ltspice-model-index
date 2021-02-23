@@ -1039,4 +1039,18 @@ export function tryParseDefaultParam(x) {
 export const DEFAULT_MODEL_PARAM_KEYS = objectMap(DEFAULT_MODELS, x => Object.keys(x));
 /** Contains valid parameters for each MODEL type, in lowercase. */
 export const DEFAULT_MODEL_PARAM_KEYS_LOWERCASE = objectMap(DEFAULT_MODEL_PARAM_KEYS, x => x.map(y => y.toLowerCase()));
+/** Valid standard diode types */
+export const DIODE_TYPES = [
+    'Silicon',
+    'Schottky',
+    'Zener',
+    'Varactor',
+    'LED',
+    'TVS',
+    'Rectifier',
+    'Fast Recovery',
+    'Switching',
+    'Germanium',
+];
+export const DIODE_TYPES_LC = DIODE_TYPES.map(x => x.toLowerCase());
 //# sourceMappingURL=ltspiceDefaultModels.js.map

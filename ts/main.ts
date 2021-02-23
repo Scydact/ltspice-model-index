@@ -11,7 +11,7 @@ import {
 } from "./Utils.js";
 import * as d from "./ltspiceModelParser.js";
 import * as p from "./StrParse.js";
-import { DEFAULT_MODELS, DEFAULT_PARAMETERS, getParamUnit, i_defaultParamDefinition, MODEL_TYPES, MODEL_TYPES_PARAMS, MODEL_TYPE_TO_GENERAL_TYPE } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, DEFAULT_PARAMETERS, DIODE_TYPES, DIODE_TYPES_LC, getParamUnit, i_defaultParamDefinition, MODEL_TYPES, MODEL_TYPES_PARAMS, MODEL_TYPE_TO_GENERAL_TYPE } from "./ltspiceDefaultModels.js";
 import {
     getModelDb,
     getModelsByType,
@@ -619,8 +619,8 @@ class LtFilterManager {
         const PARAM_STATS = APP.paramStatsByModelType[MTYPE];
         const DEF_MODEL_PARAMS = MODEL_TYPES_PARAMS[MTYPE] as i_defaultParamDefinition;
 
-        let allModelTypes = COMMON_FILTERS;
-        let specificModelType = COMMON_FILTERS_BY_MODEL[MTYPE] || [];
+        let allModelTypes = COMMON_FILTERS();
+        let specificModelType = (COMMON_FILTERS_BY_MODEL[MTYPE] || []).map(x => x());
 
         // For each parameter
         let byParameter = [] as i_filterDefinition[];
@@ -655,7 +655,33 @@ class LtFilterManager {
         }
         byParameter.sort((a, b) => (b.count - a.count));
 
+        let extraSpecific = [];
+        if (MTYPE === 'D') {
+            let selectors = {};
+            for (let diodeType of [...APP.paramStatsByModelType['D']['type'].strSet]) {
+                selectors[diodeType.toLowerCase()] = {
+                    fn: (filter: LtFilter) => {
+                        return (x: string) => {
+                            return x === diodeType;
+                        };
+                    },
+                    display: diodeType,
+                }
+            }
+            let filter = new LtFilter(
+                selectors,
+                x => x.getType(),
+                'Diode Type'
+            );
+            extraSpecific.push({
+                name: 'Diode Type',
+                description: 'Type of diode (Silicon, Zener, LED...)',
+                filter,
+            });
+        }
+
         return [
+            ...extraSpecific,
             ...specificModelType,
             ...allModelTypes,
             ...byParameter,

@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, DIODE_TYPES, DIODE_TYPES_LC, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
 import { arraysEqual, caseUnsensitiveProperty, fromEntries, getStringHashCode, LtspiceNumber, numberToHSL, objectMap, parseLtspiceNumber } from "./Utils.js";
 /** Loads models from this app's ./data/models */
@@ -129,6 +129,11 @@ export class LtspiceModel {
             keyIdx = TMPK_LC.indexOf(key.toLowerCase());
             if (keyIdx !== -1)
                 newEntry[0] = TMPK[keyIdx];
+            if (modelType === 'D' && newEntry[0] === 'type') {
+                let x = DIODE_TYPES[DIODE_TYPES_LC.indexOf(val.toLowerCase())];
+                if (x)
+                    newEntry[1] = new ParamValue(x);
+            }
             newParamEntries.push(newEntry);
         }
         return fromEntries(newParamEntries);
@@ -193,6 +198,7 @@ export class LtspiceModel {
         return LtspiceModel.getParam(this, e, modelDbByName, lookAtDefaultModels);
     }
     getType(modelDbByName) {
+        var _a;
         if (MODEL_TYPES.BJT.includes(this.type) ||
             MODEL_TYPES.JFET.includes(this.type)) {
             return this.type;
@@ -201,7 +207,8 @@ export class LtspiceModel {
             return this.mosChannel;
         }
         else if (this.type === 'D') {
-            return this.getParam('type', modelDbByName).v.toString();
+            let t = (_a = this.getParam('type', modelDbByName).v) === null || _a === void 0 ? void 0 : _a.toString();
+            return (t) ? t : '';
         }
     }
     getModelDirective() {

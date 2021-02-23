@@ -350,7 +350,7 @@ export const DEFAULT_SELECTOR_FN_STRING = {
         },
     },
 };
-export const COMMON_FILTERS = [
+export const COMMON_FILTERS = () => [
     {
         filter: new LtFilter('string', (x) => x.modName, 'Model name'),
         name: 'Model name',
@@ -359,7 +359,7 @@ export const COMMON_FILTERS = [
 ];
 export const COMMON_FILTERS_BY_MODEL = {
     BJT: [
-        {
+        () => ({
             name: 'BJT type',
             description: 'NPN or PNP.',
             filter: new LtFilter({
@@ -380,7 +380,7 @@ export const COMMON_FILTERS_BY_MODEL = {
                     display: 'PNP',
                 },
             }, (model) => model.type, 'BJT type')
-        }
+        }),
     ],
     D: [
     // {
@@ -403,7 +403,7 @@ export const COMMON_FILTERS_BY_MODEL = {
     // }
     ],
     JFET: [
-        {
+        () => ({
             name: 'Channel Type',
             description: 'JFET channel type (NJF or PJF)',
             filter: new LtFilter({
@@ -424,10 +424,10 @@ export const COMMON_FILTERS_BY_MODEL = {
                     display: 'P-type channel',
                 },
             }, (model) => model.type, 'Channel type')
-        }
+        }),
     ],
     MOSFET: [
-        {
+        () => ({
             name: 'Channel Type',
             description: 'MOSFET channel type (NMOS or PMOS)',
             filter: new LtFilter({
@@ -448,7 +448,7 @@ export const COMMON_FILTERS_BY_MODEL = {
                     display: 'P-type channel',
                 },
             }, (model) => model.mosChannel, 'Channel type')
-        }
+        }),
     ],
 };
 //# sourceMappingURL=ltspiceModelFilter.js.map

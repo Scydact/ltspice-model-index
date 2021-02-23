@@ -513,8 +513,8 @@ class LtFilterManager {
         const CURR_MODELS = APP.modelsByTypeByName[MTYPE];
         const PARAM_STATS = APP.paramStatsByModelType[MTYPE];
         const DEF_MODEL_PARAMS = MODEL_TYPES_PARAMS[MTYPE];
-        let allModelTypes = COMMON_FILTERS;
-        let specificModelType = COMMON_FILTERS_BY_MODEL[MTYPE] || [];
+        let allModelTypes = COMMON_FILTERS();
+        let specificModelType = (COMMON_FILTERS_BY_MODEL[MTYPE] || []).map(x => x());
         // For each parameter
         let byParameter = [];
         for (const PARAM_KEY in PARAM_STATS) {
@@ -541,7 +541,28 @@ class LtFilterManager {
             });
         }
         byParameter.sort((a, b) => (b.count - a.count));
+        let extraSpecific = [];
+        if (MTYPE === 'D') {
+            let selectors = {};
+            for (let diodeType of [...APP.paramStatsByModelType['D']['type'].strSet]) {
+                selectors[diodeType.toLowerCase()] = {
+                    fn: (filter) => {
+                        return (x) => {
+                            return x === diodeType;
+                        };
+                    },
+                    display: diodeType,
+                };
+            }
+            let filter = new LtFilter(selectors, x => x.getType(), 'Diode Type');
+            extraSpecific.push({
+                name: 'Diode Type',
+                description: 'Type of diode (Silicon, Zener, LED...)',
+                filter,
+            });
+        }
         return [
+            ...extraSpecific,
             ...specificModelType,
             ...allModelTypes,
             ...byParameter,
