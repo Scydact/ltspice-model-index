@@ -85,8 +85,11 @@ export class LtspiceNumber {
         this.suffix = m[3] || null;
         return;
     }
-    toString(uInsteadOfMu = false) {
-        return toLtspiceNumber(this.value, uInsteadOfMu);
+    toString(uInsteadOfMu = false, preferOriginal = false) {
+        if (preferOriginal)
+            return (uInsteadOfMu) ? this.raw.replace('μ', 'u') : this.raw;
+        else
+            return toLtspiceNumber(this.value, uInsteadOfMu);
     }
     valueOf() {
         return this.value;
@@ -237,4 +240,27 @@ export function genericSort(a, b) {
     else
         return 0;
 }
+/** Simple hash function for strings */
+export function getStringHashCode(str) {
+    var hash = 0;
+    if (str.length == 0)
+        return hash;
+    for (var i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash;
+}
+;
+/**
+ * Returns the css string for a HSL color.
+ * @param h Hue (value will be clipped to 0-360)
+ * @param s Saturation (0-1);
+ * @param l Lightness (0-1)
+ */
+export function numberToHSL(h, s, l) {
+    var shortened = this % 360;
+    return `hsl(${h % 360},${100 * s}%,${100 * l}%)`;
+}
+;
 //# sourceMappingURL=Utils.js.map

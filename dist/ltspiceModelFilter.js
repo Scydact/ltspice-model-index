@@ -191,6 +191,20 @@ export class LtFilter {
         selector.value = Object.keys(this.filterSelectorModes)[0];
         this.evtSelectorUpdate();
     }
+    /** Focuses this filter's node. */
+    focus() {
+        const csm = this.filterSelectorModes[this.inputs.selector];
+        let x = 'selector';
+        if (csm.val) {
+            x = 'val';
+        }
+        else if (csm.valB) {
+            x = 'valB';
+        }
+        let y = this.internalNodes[x];
+        y.focus();
+        return y;
+    }
     // Aux functions
     static toleranceValidator(s) {
         s = s.trim();
@@ -290,6 +304,22 @@ const DEFAULT_SELECTOR_FN_NUMBER = {
         display: '≤',
         val: {
             description: 'Less than',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+    },
+    'range': {
+        fn: (filter) => {
+            let val = filter.inputs.val.valueOf();
+            let valB = filter.inputs.valB.valueOf();
+            return (x) => val <= x && x <= valB;
+        },
+        display: '[a,b]',
+        val: {
+            description: 'At least',
+            validator: LtFilter.ltspiceNumberValidator,
+        },
+        valB: {
+            description: 'At most',
             validator: LtFilter.ltspiceNumberValidator,
         },
     },
@@ -399,7 +429,7 @@ export const COMMON_FILTERS_BY_MODEL = {
     MOSFET: [
         {
             name: 'Channel Type',
-            description: 'JFET channel type (NMOS or PMOS)',
+            description: 'MOSFET channel type (NMOS or PMOS)',
             filter: new LtFilter({
                 nchan: {
                     fn: (filter) => {
@@ -407,7 +437,7 @@ export const COMMON_FILTERS_BY_MODEL = {
                             return x === 'nchan';
                         };
                     },
-                    display: 'NPN',
+                    display: 'N-type channel',
                 },
                 pchan: {
                     fn: (filter) => {
@@ -415,7 +445,7 @@ export const COMMON_FILTERS_BY_MODEL = {
                             return x === 'pchan';
                         };
                     },
-                    display: 'PNP',
+                    display: 'P-type channel',
                 },
             }, (model) => model.mosChannel, 'Channel type')
         }

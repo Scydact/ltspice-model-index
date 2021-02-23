@@ -1,4 +1,4 @@
-import { objectMap, parseLtspiceNumber } from "./Utils.js";
+import { caseUnsensitiveProperty, objectMap, parseLtspiceNumber } from "./Utils.js";
 function extractTableData(table) {
     const rows = [...table.querySelectorAll('tr')];
     const headers = [...rows[0].querySelectorAll('td')].map(x => x.innerText.toLowerCase());
@@ -105,7 +105,7 @@ const NPN = Object.assign(Object.assign({}, STD_PARAMS), { Is: {
         default: "0.33"
     }, Tf: {
         description: "Ideal forward transit time",
-        units: "sec",
+        units: "s",
         default: "0."
     }, Xtf: {
         description: "Coefficient for bias dependence of Tf",
@@ -141,7 +141,7 @@ const NPN = Object.assign(Object.assign({}, STD_PARAMS), { Is: {
         default: "1."
     }, Tr: {
         description: "Ideal reverse transit time",
-        units: "sec",
+        units: "s",
         default: "0."
     }, Cjs: {
         description: "Zero-bias collector-substrate capacitance",
@@ -197,7 +197,7 @@ const NPN = Object.assign(Object.assign({}, STD_PARAMS), { Is: {
         default: "1e-11"
     }, Qco: {
         description: "Epitaxial region charge factor",
-        units: "Coul",
+        units: "C",
         default: "0."
     }, Quasimod: {
         description: "Quasi-saturation flag for temperature dependence",
@@ -264,7 +264,7 @@ const NPN = Object.assign(Object.assign({}, STD_PARAMS), { Is: {
         units: "V",
     }, Icrating: {
         description: "Maximum collector current. \nIgnored by LTspice, but useful when comparing models.",
-        units: "V",
+        units: "A",
     } });
 const PNP = Object.assign(Object.assign({}, NPN), { Cn: Object.assign(Object.assign({}, NPN.Cn), { default: "2.2" }), D: Object.assign(Object.assign({}, NPN.D), { default: ".52" }) });
 const D = Object.assign(Object.assign({}, STD_PARAMS), { Ron: {
@@ -320,7 +320,7 @@ const D = Object.assign(Object.assign({}, STD_PARAMS), { Ron: {
         example: "1."
     }, Tt: {
         description: "Transit-time",
-        units: "sec",
+        units: "s",
         default: "0.",
         example: "2n"
     }, Cjo: {
@@ -897,7 +897,7 @@ const VDMOS = Object.assign(Object.assign({}, STD_PARAMS), { Vto: {
         example: "0.5"
     }, Tt: {
         description: "Body diode transit time",
-        units: "sec",
+        units: "s",
         default: "0.",
         example: "10n"
     }, Eg: {
@@ -937,7 +937,7 @@ const VDMOS = Object.assign(Object.assign({}, STD_PARAMS), { Vto: {
         units: "V",
     }, Ron: {
         description: "On-state resistance. \nIgnored by LTspice, but useful when comparing models.",
-        units: "V",
+        units: "Ω",
     }, Qg: {
         description: "Gate charge. \nIgnored by LTspice, but useful when comparing models.",
         units: "C",
@@ -959,6 +959,13 @@ export const MODEL_TYPES = {
     D: ['D'],
     JFET: ['NJF', 'PJF'],
     MOSFET: ['VDMOS', 'NMOS', 'PMOS'],
+};
+export const MODEL_TYPE_TO_GENERAL_TYPE = (str) => {
+    for (let key in MODEL_TYPES) {
+        if (MODEL_TYPES[key].includes(str))
+            return key;
+    }
+    return null;
 };
 export const MODEL_TYPES_PARAMS = objectMap(MODEL_TYPES, x => {
     let o = {};
@@ -983,13 +990,10 @@ export const DEFAULT_PARAMETERS = {
         'Bf',
         'Icrating',
         'Is',
-        'Ikf',
-        'Vaf',
         'Cje',
         'Rc',
-        'Re',
         'Rb',
-        'Ise',
+        'Vaf',
     ],
     D: [
         'Is',
@@ -1010,6 +1014,17 @@ export const DEFAULT_PARAMETERS = {
         'Is',
     ],
 };
+export function getParamUnit(param, type) {
+    const a = DEFAULT_MODELS[type];
+    const b = caseUnsensitiveProperty(a, param);
+    if (a && b) {
+        const c = b.units;
+        if (c === '-')
+            return '';
+        return c;
+    }
+    return '';
+}
 export function tryParseDefaultParam(x) {
     const a = x.default;
     if (a === undefined)

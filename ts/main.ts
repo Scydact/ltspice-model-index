@@ -11,7 +11,7 @@ import {
 } from "./Utils.js";
 import * as d from "./ltspiceModelParser.js";
 import * as p from "./StrParse.js";
-import { DEFAULT_MODELS, DEFAULT_PARAMETERS, i_defaultParamDefinition, MODEL_TYPES, MODEL_TYPES_PARAMS } from "./ltspiceDefaultModels.js";
+import { DEFAULT_MODELS, DEFAULT_PARAMETERS, getParamUnit, i_defaultParamDefinition, MODEL_TYPES, MODEL_TYPES_PARAMS, MODEL_TYPE_TO_GENERAL_TYPE } from "./ltspiceDefaultModels.js";
 import {
     getModelDb,
     getModelsByType,
@@ -23,6 +23,7 @@ import {
     parseModelDb
 } from "./ltspiceModelLogic.js";
 import { COMMON_FILTERS, COMMON_FILTERS_BY_MODEL, i_filterDefinition, LtFilter } from "./ltspiceModelFilter.js";
+import { param } from "jquery";
 
 //#region Basics
 declare const $: JQueryStatic;
@@ -64,7 +65,7 @@ const APP = {
 
     /** Settings for pagination... */
     pagination: {
-        limit: 50,
+        limit: 100,
         lastIdx: 0,
         end: false,
     },
@@ -353,15 +354,15 @@ function populateTable() {
 
     const thead = tbl.createTHead();
     const rhead = thead.insertRow();
+    rhead.insertCell().innerText = 'Lib';
     rhead.insertCell().innerText = 'Model name';
-    rhead.insertCell().innerText = 'Library';
     rhead.insertCell().innerText = 'Type';
 
     for (const x of DEFAULT_PARAMETERS[APP.mode]) {
         rhead.insertCell().innerText = x;
     }
 
-    rhead.insertCell().innerText = 'Model definition';
+    // rhead.insertCell().innerText = 'Model definition';
 
     // Footer (load more models!)
     const tfoot = tbl.createTFoot();
@@ -389,13 +390,6 @@ function paginateTable() {
 
     /** Contains all the models of the same type (BJT, D, JFET, MOSFET) */
     const currModels = APP.modelsByTypeByName[APP.mode];
-    const dictGetTypeParameter = {
-        BJT: (model: LtspiceModel) => model.type,
-        JFET: (model: LtspiceModel) => model.type,
-        D: (model: LtspiceModel) => model.params.type?.v.value.toString(),
-        MOSFET: (model: LtspiceModel) => model.mosChannel,
-    } // TODO: Move inside model
-    const getTypeParam = dictGetTypeParameter[APP.mode];
     const modelEntries = APP.currentTable;
     const meLen = modelEntries.length;
 
@@ -410,26 +404,17 @@ function paginateTable() {
             modelName = model.modName;
 
         let r = tbody.insertRow();
-        r.insertCell().innerText = modelName;
-        r.insertCell().innerText = model.src.pack;
-        r.insertCell().innerText = getTypeParam(model);
+        $(r.insertCell())
+            .addClass('lib-td')
+            .append(CreateSpecialNode.library(model.src.pack.logo));
+        r.insertCell().appendChild(CreateSpecialNode.modelName(model))
+        r.insertCell().innerText = model.getType(currModels);
 
         for (const x of DEFAULT_PARAMETERS[APP.mode]) {
-            //model.params[x]?.v.toString();
-            const a = model.getParam(x, currModels);
-            const b = a.v?.toString();
-            const specialChars = {
-                undefined: ' ',
-                Infinity: '∞',
-            };
-            let c = r.insertCell()
-            c.innerText = specialChars[b] || b;
-            if (a.src === 'default') c.style.color = 'blue';
-            else if (a.src === 'ako') c.style.color = 'green';
-            else if (a.src === 'notFound') c.style.color = 'red';
+            r.insertCell().appendChild(CreateSpecialNode.param(model, x))
         }
 
-        r.insertCell().innerText = model.src.line;
+        // r.insertCell().innerText = model.src.line;
     }
 
     const foot = tbl.tFoot.firstElementChild.firstElementChild as HTMLElement;
@@ -438,6 +423,37 @@ function paginateTable() {
     } else {
         foot.innerText = `Loaded ${endIdx} of ${meLen}. ` +
             `\n[Click to load +${Math.min(APP.pagination.limit, meLen - endIdx)}]`;
+    }
+}
+
+const CreateSpecialNode = {
+    library: (model_src: { name: string, color: string }) => {
+        return $('<span class="lib">' + model_src.name + '</span>')
+            .css('background-color', model_src.color).get()[0]
+    },
+    param: (model: LtspiceModel, param: string) => {
+        const a = model.getParam(param, APP.modelsByName);
+        const b = a.v?.toString();
+        const specialChars = {
+            undefined: ' ',
+            Infinity: '∞',
+        };
+        const c = specialChars[b] || b;
+        let d = (c === '0' || Object.values(specialChars).includes(c)) ? '' : getParamUnit(param, model.type);
+        if (d[0] === '1' || d.length > 3) d = '[' + d + ']';
+        let outSpan = document.createElement('span');
+        outSpan.innerText = c + d;
+        if (a.src === 'default') outSpan.classList.add('m-src-default');
+        else if (a.src === 'ako') outSpan.classList.add('m-src-ako');
+        else if (a.src === 'notFound') outSpan.classList.add('m-src-none');
+        return outSpan;
+    },
+    modelName: (model: LtspiceModel) => {
+        return $('<span></span>')
+            .text(model.modName)
+            .addClass('model-clickable')
+            .on('click', () => showModelDetails(model))
+            .get()[0];
     }
 }
 
@@ -489,19 +505,32 @@ class LtFilterManager {
             .append(upperContainer)
             .append(this.filterListNode);
 
+        const fdm = this.addFilterDropdownManager;
+        const toggleFilterList = () => {
+            // let newFilter = new LtFilter('string', (x: LtspiceModel) => x.modName, 'Model Name')
+            // this.addFilter(newFilter);
+            if (fdm.node.classList.contains('hidden')) {
+                fdm.updateFilterDefinition();
+                fdm.node.classList.remove('hidden');
+            } else
+                fdm.node.classList.add('hidden');
+        }
+
+        $(this.filterListNode)
+            .on('mousedown', () => {
+                if (this.filters.length === 0)
+                    toggleFilterList();
+            })
+        $(document)
+            .on('keyup', (e) => {
+                if (e.key === 'Escape' && !fdm.node.classList.contains('hidden'))
+                    toggleFilterList();
+            })
+
         $(this.inputNodes.addBtn)
             .addClass('btn')
             .text('+')
-            .on('click', (evt) => {
-                // let newFilter = new LtFilter('string', (x: LtspiceModel) => x.modName, 'Model Name')
-                // this.addFilter(newFilter);
-                let fdm = this.addFilterDropdownManager;
-                if (fdm.node.classList.contains('hidden')) {
-                    fdm.updateFilterDefinition();
-                    fdm.node.classList.remove('hidden');
-                } else
-                    fdm.node.classList.add('hidden');
-            })
+            .on('click', toggleFilterList)
             .appendTo(this.inputNodes.addBtnDropdownContainer)
 
 
@@ -538,6 +567,8 @@ class LtFilterManager {
             filter.node.addEventListener('change', this.filterEvents.change);
             filter.node.addEventListener('move', this.filterEvents.move);
             filter.node.addEventListener('delete', this.filterEvents.delete);
+            this.filterEvents.change(null); // new thing added, run change();
+            filter.focus(); // focus on the newly added filter
         }
     }
 
@@ -716,8 +747,137 @@ class FilterDropdownListManager {
     }
 }
 
+function createDialog() {
+    const container = $('<div class="fullscreen padded dialog-container"></div>')
+        .appendTo(document.body)
+        .trigger('focus')
+        .on('click', (evt) => {
+            if (evt.target.classList.contains('dialog-container'))
+                $(container).remove()
+        })
+        .get()[0]
+
+    const dialog = $('<div class="dialog"></div>')
+        .appendTo(container)
+        .get()[0]
+
+    return { container, dialog }
+}
+
+$(document)
+    .on('keyup', (evt) => {
+        if (evt.key === 'Escape') {
+            $('.dialog-container').last().remove()
+        }
+    })
+
+function showModelDetails(model: LtspiceModel) {
+    const { dialog } = createDialog();
+
+    $(dialog).append(
+        $(`<h1></h1>`)
+            .append(CreateSpecialNode.library(model.src.pack.logo))
+            .append(`<span> ${model.modName}</span>`)
+    )
+
+    // Model
+    $('<h2>Model: </h2>').appendTo(dialog);
+    if (model.isAko) {
+        $(`<span class="explanatory"></span>`)
+            .append($(`<span>Model ${model.modName} is an alias of </span>`))
+            .append(CreateSpecialNode.modelName(APP.modelsByName[model.akoBaseModel][0]))
+            .append($('<span>.</span>'))
+            .appendTo(dialog)
+    }
+    const modelBox = $('<pre class="model-box"></pre>')
+        .appendTo(dialog)
+        .text(model.getModelDirective())
+
+    var isShowingOriginal = false;
+    const getModelText = () => (isShowingOriginal) ? model.src.line : model.getModelDirective();
+
+    $('<button class="btn">Show original</button>')
+        .on('click', (evt) => {
+            modelBox.text(getModelText())
+            $(evt.target).text((isShowingOriginal) ? 'Show parsed' : 'Show original');
+            isShowingOriginal = !isShowingOriginal;
+        })
+        .appendTo(dialog);
+
+    $('<button class="btn">Break lines</button>')
+        .on('click', (evt) => {
+            let limitStr = prompt('Number of characters: ', '60'),
+                limit = parseFloat(limitStr);
+            if (isNaN(limit)) return;
+
+            let t = getModelText().split(' '),
+                counter = 0,
+                joint = '\n + ',
+                o = [],
+                nl = [];
+
+            for (let word of t) {
+                counter += word.length + 1;
+                if (counter > limit) {
+                    o.push(nl);
+                    nl = [];
+                    counter = joint.length;
+                }
+                nl.push(word);
+            }
+            if (nl.length) o.push(nl);
+            modelBox.text(o.map(x => x.join(' ')).join('\n + '))
+        })
+        .appendTo(dialog);
+    $('<button class="btn">Copy</button>')
+        .on('click', (evt) => {
+            let t = modelBox.text();
+            navigator.clipboard.writeText(t);
+        })
+        .appendTo(dialog);
 
 
+    // Properties table
+    $('<h2>Properties: </h2>').appendTo(dialog);
+    const createDef = (key: string, val: string) => {
+        return $('<tr></tr>')
+            .append(`<td>${key}</td>`)
+            .append(`<td>${val}</td>`)
+    }
+    const CURR_MODELS = APP.modelsByTypeByName[APP.mode]
+
+    const propTable = $('<table></table>')
+        .appendTo(
+            $('<div class="table-container"></div>')
+                .appendTo(dialog)
+                .css('margin-bottom', '2em')
+        )
+        .append(
+            createDef(
+                '[Type]'.bold(),
+                model.getType(CURR_MODELS)
+            )
+        )
+
+    let a1 = Object.keys(model.params),
+        a2 = DEFAULT_PARAMETERS[MODEL_TYPE_TO_GENERAL_TYPE(model.type)] as string[],
+        a3p = DEFAULT_MODELS[model.type] as i_defaultParamDefinition,
+        a3 = Object.keys(a3p).filter(x => a3p[x].default !== undefined);
+    let paramsToShow = new Set([
+        ...a1,
+        ...a2,
+        ...a3,
+    ]);
+    for (let param of paramsToShow) {
+        let a = model.getParam(param, CURR_MODELS);
+        if (a) {
+            let x = `[${param}]`.bold();
+            if (a.desc) x += '<br>' + a.desc;
+            createDef(x, CreateSpecialNode.param(model, param).outerHTML)
+                .appendTo(propTable)
+        } else { console.log(param, model.getParam(param, CURR_MODELS)) }
+    }
+}
 
 
 

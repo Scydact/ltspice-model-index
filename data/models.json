@@ -2,6 +2,7 @@
     {
         "name": "Standard",
         "location": "standard",
+        "logo": "std",
         "source": "LTSpice original install",
         "priority": 0,
         "files": [
@@ -14,6 +15,7 @@
     {
         "name": "LTWiki LTspice Standard Library Replacement",
         "location": "std_plus",
+        "logo": "std+",
         "source": "http://ltwiki.org/index.php?title=Components_Library_and_Circuits",
         "priority": -10,
         "files": [
@@ -26,6 +28,7 @@
     {
         "name": "LTWiki LTspice by Bordodynov",
         "location": "bordodynov",
+        "logo": "bdynov",
         "source": "http://ltwiki.org/index.php?title=Components_Library_and_Circuits",
         "priority": -20,
         "files": [

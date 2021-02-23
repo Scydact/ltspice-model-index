@@ -5,6 +5,7 @@
 :root {
     --br: 0.3em;
     --accent: #619eff;
+    --accent-bg: #4a8df88c;
 }
 
 body {
@@ -110,6 +111,52 @@ h1 {
     }
 }
 
+.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+    background-color: rgba(0, 0, 0, 0.3);
+}
+.padded {
+    padding: 1em;
+}
+
+.dialog {
+    background-color: white;
+    padding: 1em;
+    border-radius: var(--br);
+    min-width: 20em;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: auto;
+}
+.dialog .btn + .btn {
+    margin-left: 0.5em;
+}
+
+.scroll {
+    overflow-y: auto;
+}
+
+table {
+    width: 100%;
+}
+
+.dialog td:last-child {
+    padding: 0 2em;
+}
+
+.dialog td:first-child {
+    text-align: right;
+    width: 50%;
+}
+
 #mainProgressBarContainer {
     position: fixed;
     left: 0;
@@ -155,7 +202,7 @@ tr:nth-child(even) {
     margin-top: 2em;
     min-width: 80%;
 }
-#mainTableContainer table{
+#mainTableContainer table {
     width: 100%;
 }
 
@@ -177,6 +224,28 @@ tr:nth-child(even) {
     background-color: rgb(124, 185, 255);
 }
 
+#mainTableContainer td {
+    padding: 0 0.25em;
+    white-space: break-spaces;
+}
+
+.lib-td {
+    width: 1px;
+    white-space: nowrap;
+    padding: 0.05em 0;
+    text-align: right;
+    padding-right: 0.5em;
+}
+
+.lib {
+    display: inline-block;
+    color: white;
+    font-family: monospace;
+    padding: 0.1em 0.5em;
+    margin: 0.1em 0;
+    border-radius: var(--br);
+}
+
 .btn {
     padding: 0.5em;
     min-width: 2.5rem;
@@ -196,9 +265,9 @@ tr:nth-child(even) {
 
 input {
     background-color: white;
-    border: 1px solid rgba(0,0,0,50%);
+    border: 1px solid rgba(0, 0, 0, 50%);
     border-radius: var(--br);
-    padding: .2em .5em;
+    padding: 0.2em 0.5em;
 }
 
 input.invalid {
@@ -299,7 +368,10 @@ input.invalid {
 
 .filter-list:empty::before {
     content: "Click '+' to add a new filter criteria.";
-    color: rgba(0,0,0,50%);
+}
+.explanatory,
+.filter-list:empty::before {
+    color: rgba(0, 0, 0, 50%);
     font-style: italic;
 }
 
@@ -382,4 +454,31 @@ input.invalid {
     height: fit-content;
     width: 5em;
     max-width: 50%;
+}
+
+/* Model dialog */
+.model-box {
+    /* Model line*/
+    white-space: pre-line;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    background-color: rgba(0, 0, 0, 5%);
+    padding: 1em;
+    border-radius: var(--br);
+    font-size: large;
+    max-width: 60em;
+}
+.model-clickable {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.m-src-default {
+    color: blue;
+}
+.m-src-ako {
+    color: rgb(185, 21, 158);
+}
+.m-src-none {
+    color: red;
+    font-weight: bold;
 }

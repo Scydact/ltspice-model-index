@@ -1,11 +1,13 @@
 import { DEFAULT_MODELS, DEFAULT_MODEL_PARAM_KEYS, DEFAULT_MODEL_PARAM_KEYS_LOWERCASE, i_defaultParamDefinition, MODEL_TYPES, tryParseDefaultParam } from "./ltspiceDefaultModels.js";
 import * as d from "./ltspiceModelParser.js";
-import { arraysEqual, caseUnsensitiveProperty, fromEntries, LtspiceNumber, objectMap, parseLtspiceNumber, runMethodIfExist } from "./Utils.js";
+import { arraysEqual, caseUnsensitiveProperty, fromEntries, getStringHashCode, LtspiceNumber, numberToHSL, objectMap, parseLtspiceNumber, runMethodIfExist } from "./Utils.js";
 
 /** Specifies a group of files with extensions 'bjt, dio, jft, mos' */
 export type i_modelDb = {
     /** Display name for the pack. */
     name: string,
+    /** Very short string to display on the table as the source library. */
+    logo?: string,
     /** Pack location inside .data/models/ */
     location: string,
     /** Source of this pack, as URL or string. */
@@ -40,6 +42,13 @@ export type i_modelPack = {
     displayName: string,
     /** Pack location inside ./data/models */
     name: string,
+    /** Logo of the pack to show at the table. */
+    logo: {
+        /** Name to show. Very short string. */
+        name: string,
+        /** Color, formatted as CSS HSL(). */
+        color: string,
+    }
     /** Pack priority precedence number. */
     priority: number,
     /** Parsed model results. */
@@ -81,8 +90,11 @@ export async function parseModelDb(
     const packLen = modelDbList.length
     for (let packIdx = 0; packIdx < packLen; ++packIdx) {
         const pack = modelDbList[packIdx];
+        let logoName = pack['logo'] || pack.name.slice(0, 2) + pack.name.slice(-1);
+        let logoColor = numberToHSL(getStringHashCode(pack.name + pack.source + pack.location), .5, .6);
         const oPack = {
             displayName: pack.name,
+            logo: { name: logoName, color: logoColor, },
             name: pack.location,
             source: pack.source,
             priority: pack.priority,
@@ -139,7 +151,7 @@ export async function parseModelDb(
 
 type i_modelSrc = {
     /** Original pack name */
-    pack: string,
+    pack: i_modelPack,
     /** Priority of this pack */
     priority: number,
     /** File from which the model is defined. */
@@ -213,7 +225,7 @@ export class LtspiceModel {
         }
 
         this.src = src || {
-            pack: 'nopack',
+            pack: null,
             priority: 10,
             file: '',
             lineIndex: 0,
@@ -255,18 +267,25 @@ export class LtspiceModel {
     static getParam(
         model: LtspiceModel,
         param: string,
-        modelDbByName: { [k: string]: LtspiceModel } = null,
+        modelDbByName: { [k: string]: LtspiceModel } | { [k: string]: LtspiceModel[] } = null,
         lookAtDefaultModels = true,
         _lastSearch = null
-    ): { v: ParamValue, src: 'model' | 'ako' | 'default' | 'notFound' } {
+    ): {
+        v: ParamValue,
+        src: 'model' | 'ako' | 'default' | 'notFound',
+        desc: string,
+    } {
         const console = {
             log: (...args) => { },
         }
+        let DEF_MODEL = DEFAULT_MODELS[model.type] as i_defaultParamDefinition;
+        let desc = caseUnsensitiveProperty(DEF_MODEL, param)?.description || '';
+
         // 1. Inside given param
         let a = caseUnsensitiveProperty(model.params, param);
         if (a !== undefined) {
             console.log('Found on model');
-            return { v: a, src: 'model' };
+            return { v: a, src: 'model', desc };
         }
 
         // 2. Inside original AKO alias.
@@ -274,7 +293,9 @@ export class LtspiceModel {
             console.log('Model is AKO ' + model.akoBaseModel)
             if (modelDbByName && modelDbByName[model.akoBaseModel]) {
                 // Do not look at default model here!
-                let b = LtspiceModel.getParam(modelDbByName[model.akoBaseModel], param, modelDbByName, false);
+                let akoModelElem = modelDbByName[model.akoBaseModel];
+                let akoModel = (akoModelElem instanceof Array) ? akoModelElem[0] : akoModelElem;
+                let b = LtspiceModel.getParam(akoModel, param, modelDbByName, false);
                 if (b !== undefined) {
                     console.log('Found on AKO ' + model.akoBaseModel);
                     return { ...b, src: 'ako' };
@@ -286,8 +307,7 @@ export class LtspiceModel {
 
         // 3. Inside default (if allowed)
         if (lookAtDefaultModels) {
-            let c = DEFAULT_MODELS[model.type] as i_defaultParamDefinition;
-            let d = caseUnsensitiveProperty(c, param);
+            let d = caseUnsensitiveProperty(DEF_MODEL, param);
             if (d !== undefined) {
                 let e = tryParseDefaultParam(d);
 
@@ -295,21 +315,52 @@ export class LtspiceModel {
                 // _lastSearch is to avoid potential recursion
                 if (typeof (e) === 'string' && _lastSearch !== e) {
                     console.log('Searching as parameter ' + e);
-                    return LtspiceModel.getParam(model, e, modelDbByName, lookAtDefaultModels, e);
+                    return { ...LtspiceModel.getParam(model, e, modelDbByName, lookAtDefaultModels, e), src: 'default' };
                 }
 
                 if (e !== undefined) {
                     console.log('Found on DEFAULT_MODEL');
-                    return { v: new ParamValue(e), src: 'default' };// return a number/string;
+                    return { v: new ParamValue(e), src: 'default', desc };// return a number/string;
                 }
             }
         }
         console.log('Not found!');
-        return { v: undefined, src: 'notFound' };
+        return { v: undefined, src: 'notFound', desc };
     }
 
-    getParam(e: string, modelDbByName: { [k: string]: LtspiceModel }, lookAtDefaultModels: boolean = true) {
+    getParam(e: string, modelDbByName?: { [k: string]: LtspiceModel } | { [k: string]: LtspiceModel[] }, lookAtDefaultModels: boolean = true) {
         return LtspiceModel.getParam(this, e, modelDbByName, lookAtDefaultModels);
+    }
+
+    getType(modelDbByName?: { [k: string]: LtspiceModel }) {
+        if (MODEL_TYPES.BJT.includes(this.type) ||
+            MODEL_TYPES.JFET.includes(this.type)) {
+            return this.type;
+        } else if (MODEL_TYPES.MOSFET.includes(this.type)) {
+            return this.mosChannel;
+        } else if (this.type === 'D') {
+            return this.getParam('type', modelDbByName).v.toString()
+        }
+    }
+
+    getModelDirective() {
+        let out = `.model ${this.modName} `;
+        if (this.isAko) out += `ako:${this.akoBaseModel} `
+        out += this.type;
+        if (this.params) {
+            let p = [];
+            for (let param in this.params) {
+                let pval = this.params[param];
+                if (pval.v) {
+                    let val = (pval.type === 'number') ? pval.v.toString(true, true) : pval.v.toString();
+                    p.push(param + '=' + val);
+                } else {
+                    p.push(param);
+                }
+            }
+            out += `(${p.join(' ')})`
+        }
+        return out;
     }
 }
 
@@ -371,7 +422,7 @@ export function joinDb(dbArray: i_modelPack[]) {
 
             // create model
             const src = {
-                pack: dB.name,
+                pack: dB,
                 priority: dB.priority,
                 file: model.src,
                 lineIndex: model.i,

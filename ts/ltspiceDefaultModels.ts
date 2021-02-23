@@ -1,4 +1,4 @@
-import { objectMap, parseLtspiceNumber } from "./Utils.js";
+import { caseUnsensitiveProperty, objectMap, parseLtspiceNumber } from "./Utils.js";
 
 export type i_defaultParamDefinition = {
     [key: string]: i_paramDefinition
@@ -141,7 +141,7 @@ const NPN: i_defaultParamDefinition = {
     },
     Tf: {
         description: "Ideal forward transit time",
-        units: "sec",
+        units: "s",
         default: "0."
     },
     Xtf: {
@@ -186,7 +186,7 @@ const NPN: i_defaultParamDefinition = {
     },
     Tr: {
         description: "Ideal reverse transit time",
-        units: "sec",
+        units: "s",
         default: "0."
     },
     Cjs: {
@@ -256,7 +256,7 @@ const NPN: i_defaultParamDefinition = {
     },
     Qco: {
         description: "Epitaxial region charge factor",
-        units: "Coul",
+        units: "C",
         default: "0."
     },
     Quasimod: {
@@ -341,7 +341,7 @@ const NPN: i_defaultParamDefinition = {
     },
     Icrating: {
         description: "Maximum collector current. \nIgnored by LTspice, but useful when comparing models.",
-        units: "V",
+        units: "A",
     },
 
 };
@@ -419,7 +419,7 @@ const D: i_defaultParamDefinition = {
     },
     Tt: {
         description: "Transit-time",
-        units: "sec",
+        units: "s",
         default: "0.",
         example: "2n"
     },
@@ -1123,7 +1123,7 @@ const VDMOS: i_defaultParamDefinition = {
     },
     Tt: {
         description: "Body diode transit time",
-        units: "sec",
+        units: "s",
         default: "0.",
         example: "10n"
     },
@@ -1172,7 +1172,7 @@ const VDMOS: i_defaultParamDefinition = {
     },
     Ron: {
         description: "On-state resistance. \nIgnored by LTspice, but useful when comparing models.",
-        units: "V",
+        units: "Ω",
     },
     Qg: {
         description: "Gate charge. \nIgnored by LTspice, but useful when comparing models.",
@@ -1201,6 +1201,13 @@ export const MODEL_TYPES = {
     MOSFET: ['VDMOS', 'NMOS', 'PMOS'],
 }
 
+export const MODEL_TYPE_TO_GENERAL_TYPE = (str: string) => {
+    for (let key in MODEL_TYPES) {
+        if (MODEL_TYPES[key].includes(str)) return key;
+    }
+    return null;
+}
+
 export const MODEL_TYPES_PARAMS = objectMap(MODEL_TYPES, x => {
     let o = {};
     for (let key of x.reverse()) {
@@ -1225,13 +1232,10 @@ export const DEFAULT_PARAMETERS = {
         'Bf',
         'Icrating',
         'Is',
-        'Ikf',
-        'Vaf',
         'Cje',
         'Rc',
-        'Re',
         'Rb',
-        'Ise',
+        'Vaf',
     ],
     D: [
         'Is',
@@ -1251,6 +1255,17 @@ export const DEFAULT_PARAMETERS = {
         'Lambda',
         'Is',
     ],
+}
+
+export function getParamUnit(param: string, type: string) {
+    const a = DEFAULT_MODELS[type] as i_defaultParamDefinition;
+    const b = caseUnsensitiveProperty(a, param);
+    if (a && b) {
+        const c = b.units;
+        if (c === '-') return '';
+        return c;
+    }
+    return '';
 }
 
 export function tryParseDefaultParam(x: i_paramDefinition) {
